@@ -26,7 +26,7 @@ import pytest
 
 from osprey.services.python_executor.execution.wrapper import ExecutionWrapper
 from osprey.services.python_executor.write_surface import _CLIENT_WRITE_TARGETS
-from osprey_connectors.control_system.limits_validator import (
+from osprey_connectors.control_system._limits_validator import (
     ChannelLimitsConfig,
     LimitsValidator,
 )
