@@ -94,7 +94,9 @@ from osprey_connectors.ipc import _frames as frames
 
 __all__ = ["CHILD", "ChildUnresponsiveError", "ConnectorHostProxy", "raised_by_child"]
 
-logger = logging.getLogger("osprey_connectors.ipc._proxy")
+# Named for the public namespace, not this private module, so a logging config
+# keyed on the name keeps matching whatever the module is called.
+logger = logging.getLogger("osprey_connectors.ipc.proxy")
 
 #: How the child is named in every failure message it causes. Operators read
 #: these; "connection lost" without a subject is not an actionable sentence.

@@ -688,13 +688,14 @@ name = "The framework reaches the connector packages only through their namespac
 # its modules public: its root is imported by readers that must not load
 # numpy, so the heavy modules are reached by their own names. The package's
 # top-level modules (config, types, posture_store, ...) are each their own
-# public API; of them only `_version` is private, and it is listed.
+# public API. The one private top-level module, `_version`, is written by the
+# build and gitignored; it is not listed, because import-linter refuses a
+# listed module that is missing from the graph, as it is on a fresh clone.
 type = "protected"
 protected_modules = [
     "osprey_connectors.control_system.*",
     "osprey_connectors.archiver.*",
     "osprey_connectors.ipc.*",
-    "osprey_connectors._version",
 ]
 allowed_importers = ["osprey_connectors"]
 ignore_imports = [

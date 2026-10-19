@@ -330,8 +330,13 @@ def test_every_private_top_level_module_is_protected():
     contract = next(
         c for c in config["tool"]["importlinter"]["contracts"] if c["id"] == "connectors-public-api"
     )
+    # `_version` is written by the build and gitignored, so it is absent on a
+    # fresh clone, and import-linter refuses a listed module the graph lacks.
+    # Nothing imports it; the package answers its version from its metadata.
     private = {
-        f"osprey_connectors.{path.stem}" for path in ROOT.glob("_*.py") if path.stem != "__init__"
+        f"osprey_connectors.{path.stem}"
+        for path in ROOT.glob("_*.py")
+        if path.stem not in {"__init__", "_version"}
     }
 
     assert private <= set(contract["protected_modules"]), sorted(

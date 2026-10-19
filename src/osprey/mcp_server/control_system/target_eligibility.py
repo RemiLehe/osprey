@@ -33,7 +33,7 @@ somewhere the config never described — the failure mode where every layer
 reports success and the tool calls land on the wrong machine.
 
 Both are computed from the same inputs the connector itself uses. The
-derivation and the verification live in :mod:`osprey_connectors.ipc._verification`,
+derivation and the verification live in :mod:`osprey_connectors.ipc`,
 shared with the library's
 :class:`~osprey_connectors.ipc.ConnectorHostPool`: it restates
 ``EPICSConnector.connect()``'s gateway selection and environment derivation

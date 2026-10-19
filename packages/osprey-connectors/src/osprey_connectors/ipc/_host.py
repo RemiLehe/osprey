@@ -287,7 +287,9 @@ DEFAULT_PROBE_TIMEOUT_S = 5.0
 
 _READ_CHUNK_BYTES = 65536
 
-logger = logging.getLogger("osprey_connectors.ipc._host")
+# Named for the public namespace, not this private module, so a logging config
+# keyed on the name keeps matching whatever the module is called.
+logger = logging.getLogger("osprey_connectors.ipc.host")
 
 
 # --------------------------------------------------------------------------

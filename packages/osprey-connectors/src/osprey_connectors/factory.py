@@ -13,7 +13,7 @@ import importlib
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from osprey_connectors import types
 from osprey_connectors.control_system._base import ControlSystemConnector
@@ -436,8 +436,8 @@ class BuiltinConnector:
 
     #: The type name a config selects it by, and the key it registers under.
     name: str
-    #: ``"control_system"`` or ``"archiver"``.
-    kind: str
+    #: Which registry it goes into, and the ``connector_type`` a registration names.
+    kind: Literal["control_system", "archiver"]
     module_path: str
     class_name: str
     description: str
@@ -566,5 +566,10 @@ def register_builtin_connectors() -> None:
         if builtin.kind == "control_system":
             if builtin.name not in ConnectorFactory._control_system_connectors:
                 ConnectorFactory.register_control_system(builtin.name, builtin.load())
-        elif builtin.name not in ConnectorFactory._archiver_connectors:
-            ConnectorFactory.register_archiver(builtin.name, builtin.load())
+        elif builtin.kind == "archiver":
+            if builtin.name not in ConnectorFactory._archiver_connectors:
+                ConnectorFactory.register_archiver(builtin.name, builtin.load())
+        else:
+            raise ValueError(
+                f"built-in connector {builtin.name!r} has unknown kind {builtin.kind!r}"
+            )

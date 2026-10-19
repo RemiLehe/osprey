@@ -212,7 +212,9 @@ __all__ = [
     "PooledConnector",
 ]
 
-logger = logging.getLogger("osprey_connectors.ipc._pool")
+# Named for the public namespace, not this private module, so a logging config
+# keyed on the name keeps matching whatever the module is called.
+logger = logging.getLogger("osprey_connectors.ipc.pool")
 
 #: The one execution mode a key may carry besides ``None``.
 READONLY = "readonly"
@@ -359,9 +361,7 @@ class _StartMarkPipe:
 def _describe_start(phases: tuple[tuple[str, float], ...]) -> str:
     """One sentence on how far a child got in starting, from the marks it wrote."""
     if not phases:
-        return (
-            "It had not finished starting its interpreter and loading osprey_connectors.ipc._host."
-        )
+        return "It had not finished starting its interpreter and loading the connector host."
     last, seconds = phases[-1]
     reached = {
         "main": f"It was up after {seconds:.1f}s and had not read its init frame.",
