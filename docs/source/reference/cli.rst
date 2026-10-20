@@ -1164,7 +1164,9 @@ the current directory is used.
 osprey ariel
 ============
 
-Manage the ARIEL logbook search service.
+Manage the ARIEL logbook search service. Run from anywhere inside a deployment
+repo: the commands read its ``build/config.yml``, or the file ``CONFIG_FILE``
+names.
 
 ``osprey ariel quickstart [--source PATH]``
    Full setup: migrate, then ingest ``--source`` or the configured ingestion
