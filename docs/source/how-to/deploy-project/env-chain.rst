@@ -175,7 +175,7 @@ are.
    agent's SQL tool queries through, created by an init script the same
    volume initialization runs. A volume that predates the role simply does not
    have it, and the agent says so once at start-up rather than failing. See
-   :doc:`../ariel/standalone-deployment` for adopting the role on an existing
+   :ref:`ariel-sql-readonly-role` for adopting the role on an existing
    database.
 
 Egress through a site proxy

@@ -20,7 +20,7 @@ from osprey.cli import build_profile_presets
 from osprey.cli.build_profile import _load_preset_raw, resolve_build_profile
 from osprey.cli.build_profile_emit import emit_standalone_profile_yaml
 from osprey.cli.build_profile_presets import PRESET_FACILITY_KEY, list_presets, preset_facility
-from osprey.cli.profile_cmd import _preset_data, _preset_data_names
+from osprey.cli.profile_cmd import _preset_data
 from osprey.cli.templates.manager import TemplateManager
 from osprey.cli.templates.preset_data import compose_preset_data
 from osprey_connectors.errors import BuildProfileError
@@ -56,10 +56,7 @@ def fake_presets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     [
         ("control-assistant", "example"),
         ("control_assistant", "example"),
-        ("control-assistant-readonly", "example"),
         ("hello-world", "hello_world"),
-        ("ariel-standalone", "example"),
-        ("channel-finder-standalone", "example"),
         (None, None),
         ("no-such-preset", None),
     ],
@@ -211,16 +208,3 @@ def test_an_absent_facility_is_a_packaging_fault(tmp_path: Path) -> None:
 
     with pytest.raises(BuildProfileError, match="reinstall"):
         compose_preset_data(root, "app", "no_such_facility")
-
-
-# ---------------------------------------------------------------------------
-# Personas share the host's one data tree
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "persona",
-    [preset for preset in list_presets() if preset.startswith("control-assistant-")],
-)
-def test_every_persona_preset_composes_the_host_s_data(persona: str) -> None:
-    assert _preset_data_names(persona) == _preset_data_names("control-assistant")

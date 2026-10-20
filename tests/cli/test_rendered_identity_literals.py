@@ -9,7 +9,7 @@ The source guard (:mod:`tests.docs.test_shipped_identity_literals`) cannot
 cover this on its own. Its exemptions are keyed on the source path where an
 institution is the subject, and nothing follows that text into the files the
 render copies it to. Text composed at render time — the emitter's commented
-templates, preset comments copied into ``profile.yml``, persona renders, data
+templates, preset comments copied into ``profile.yml``, renders, data
 bundles, the ``build/.image`` copies — never exists as a source file at all.
 So this module materialises every root preset the way a deployer does and
 walks every text file of the repository that results, matching each line
@@ -80,18 +80,18 @@ RENDERED_DENIED: tuple[Denied, ...] = DENIED + RENDER_ONLY_DENIED
 
 
 def _root_presets() -> tuple[str, ...]:
-    """Every shipped preset that extends no other; personas render inside these."""
+    """Every shipped preset that extends no other; renders render inside these."""
     return tuple(name for name in list_presets() if "extends" not in _read_preset_document(name)[0])
 
 
-def _persona_presets() -> dict[str, str]:
+def _render_presets() -> dict[str, str]:
     """Each preset that extends a root, mapped to the root it extends."""
-    personas: dict[str, str] = {}
+    tiers: dict[str, str] = {}
     for name in list_presets():
         parent = _read_preset_document(name)[0].get("extends")
         if parent:
-            personas[name] = str(parent)
-    return personas
+            tiers[name] = str(parent)
+    return tiers
 
 
 ROOT_PRESETS = _root_presets()
@@ -200,7 +200,7 @@ def rendered(tmp_path_factory: pytest.TempPathFactory) -> Mapping[str, Render]:
     """Every root preset rendered once, with its scan."""
     renders: dict[str, Render] = {}
     for preset in ROOT_PRESETS:
-        # Named after the preset so persona renders land at build/<persona>.
+        # Named after the preset so renders land at build/<render>.
         repo = tmp_path_factory.mktemp("rendered") / preset
         with pytest.MonkeyPatch.context() as patch:
             for variable in _ACCOUNT_VARIABLES:
@@ -245,15 +245,13 @@ def test_every_catalog_allowance_is_still_rendered(rendered: Mapping[str, Render
 
 
 @pytest.mark.slow
-def test_every_persona_renders_inside_its_root_preset(rendered: Mapping[str, Render]) -> None:
-    personas = _persona_presets()
-    assert personas, "no shipped preset extends a root preset"
+def test_every_renders_inside_its_root_preset(rendered: Mapping[str, Render]) -> None:
+    tiers = _render_presets()
+    assert tiers, "no shipped preset extends a root preset"
     missing = sorted(
-        persona
-        for persona, root in personas.items()
-        if not (rendered[root].repo / "build" / persona).is_dir()
+        tier for tier, root in tiers.items() if not (rendered[root].repo / "build" / tier).is_dir()
     )
-    assert missing == [], f"persona renders not under their root's build/: {missing}"
+    assert missing == [], f"renders not under their root's build/: {missing}"
 
 
 @pytest.mark.slow

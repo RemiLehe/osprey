@@ -130,6 +130,14 @@ the ones you added are kept. Never touches ``.env``, ``.git``, ``var/``,
 
 ``--no-git`` — Skip ``git init`` and the initial commit.
 
+``--revalidate [--preset NAME]`` — Bring an existing deployment repository to
+this OSPREY in place: the current profile vocabulary, every config key the
+profile leaves to its preset (from ``--preset NAME``, or the preset the profile
+records), and the provider entries OSPREY ships, keeping the ones you added.
+Your deployment's own selections — the roster, the shared apps, the default
+tier, role tiers, the landing groups — are left for you and named in the
+output. Prints a diff to review and commit.
+
 ``--up`` / ``-d, --detach`` / ``--dev`` — Build and start the deployment right
 away, optionally in the background or in development mode.
 
@@ -138,6 +146,7 @@ away, optionally in the background or in development mode.
    osprey init --list-presets
    osprey init als-assistant --preset control-assistant
    osprey init demo --preset control-assistant --up -d --dev
+   osprey init als-assistant --revalidate
 
 osprey set
 ==========
@@ -299,7 +308,6 @@ source a deployment is built from — see :doc:`/how-to/build-profiles`.
 .. code-block:: bash
 
    osprey profile validate TARGET
-   osprey profile expand
    osprey profile presets
    osprey profile artifacts
    osprey profile card
@@ -315,47 +323,6 @@ source a deployment is built from — see :doc:`/how-to/build-profiles`.
 ``osprey profile presets``
    List bundled preset names, one per line. Every name printed is usable as
    ``--preset NAME`` for ``osprey init``.
-
-.. _cli-profile-expand:
-
-``osprey profile expand [--from PRESET] [--providers] [--repo DIRECTORY]``
-   Fill in every config key this profile leaves to its preset.
-
-   A profile written before the app template retired spells only what its
-   facility changed; the rest came from a packaged template the operator never
-   saw. ``expand`` writes those keys into the profile itself, each under the
-   comment the preset documents it with, and drops the retired top-level key
-   that named the template. Nothing already in the file is changed — expansion
-   only adds — so running it twice leaves the profile exactly as the first run
-   left it.
-
-   Which preset it expands from is decided in this order: ``--from`` if given,
-   otherwise ``provenance.preset``, otherwise the app template the profile
-   still names. So a profile with no ``provenance:`` block expands fine, and
-   ``--from`` overrides a stamp that names the wrong preset.
-
-   Two kinds of lacking key are deliberately left out, and both are listed in
-   the output with the reason:
-
-   - a key another block of the profile already owns — ``deploy:`` is the home
-     of ``image_source``, and the build writes it into the config for you;
-   - anything below a catalog whose entries are the deployment's own data: the
-     persona catalog, the provider table, named panel layouts.
-
-   ``--providers`` refreshes ``providers.yml`` in the same pass, resetting the
-   entries OSPREY ships to the packaged values and keeping the ones you added.
-
-   Expanding also stamps ``provenance:``, which turns the preset-drift check
-   on. From then on ``osprey validate`` refuses every unclaimed structural
-   difference from that preset. A profile that had no stamp before will have
-   differences the first time, so the verb counts them and prints the
-   ``--drift=warn`` hint alongside the count.
-
-   .. code-block:: bash
-
-      osprey profile expand
-      osprey profile expand --from control-assistant
-      osprey profile expand --providers
 
 ``osprey profile artifacts``
    List every artifact the six profile lists can name — hooks, rules, skills,
@@ -1168,8 +1135,8 @@ Manage the ARIEL logbook search service.
 
 ``osprey ariel quickstart [--source PATH]``
    Full setup: migrate, then ingest ``--source`` or the configured ingestion
-   source; with neither, seed ``ariel.demo_narrative`` into an empty logbook
-   and run the enhancement modules over it.
+   source; with neither, enhance what the logbook already holds (a deploy
+   seeds it from the active scenarios).
 
 ``osprey ariel status [--json]``
    Show the database connection, embedding tables and enhancement counts.
@@ -1446,14 +1413,19 @@ All subcommands accept a common flag:
    boot hook at boot — the route for a daemon-managed autofs home, and the
    no-root fallback elsewhere.
 
-``osprey scaffold personas [--from PRESET] [--force] [--repo DIRECTORY]``
-   Write ``personas/<name>.yml`` for every entry in the profile's
-   ``modules.web_terminals.personas`` catalog, then point each entry at its
-   file, so the catalog no longer resolves to the preset it was copied from.
-   Each file holds only what the persona changes. ``--from`` names the preset
-   whose catalog to emit (default: the preset this repo was created from). A
-   file that already exists is reported and left alone unless ``--force`` is
-   given.
+``osprey scaffold tiers [--from PRESET] [--force]``
+   Write ``tiers/<name>.yml`` for every tier the preset's web-terminal roster
+   names, as ``osprey init`` does. A file that already matches is left
+   untouched; one that differs is reported and left alone unless ``--force``
+   is given. ``--from`` names the preset (default: the preset this repo was
+   created from).
+
+``osprey scaffold apps [--from PRESET] [--force]``
+   Write ``apps/<name>.yml`` for every app the preset's roster shares, as
+   ``osprey init`` does. A file that already matches is left untouched; one
+   that differs is reported and left alone unless ``--force`` is given.
+   ``--from`` names the preset (default: the preset this repo was created
+   from).
 
 ``osprey scaffold pull PRESET[:PATH] [--list] [--force] [--with-content] [--repo DIRECTORY]``
    Copy a preset's packaged content into this repo, each file at the same path,
@@ -1517,7 +1489,8 @@ All subcommands accept a common flag:
 
    osprey scaffold ci                             # Re-emit the CI files
    osprey scaffold systemd                        # Write the boot unit
-   osprey scaffold personas                       # Emit the persona files
+   osprey scaffold tiers                          # Write the tier files
+   osprey scaffold apps                           # Write the app files
    osprey scaffold pull control-assistant --list  # Show what a preset offers
    osprey scaffold list                           # Show all artifacts
    osprey scaffold claim agents/channel-finder    # Claim for editing

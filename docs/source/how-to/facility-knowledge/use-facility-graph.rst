@@ -177,14 +177,13 @@ file reaches the graph with:
    $ osprey build && osprey up
 
 
-What the Presets Seed
+What the Preset Seeds
 =====================
 
-Both presets seed the graph view ``osprey build`` writes from their facility
-file, ``data/graph/facility.ttl`` under the render. No hand-written corpus
-ships. The ARIEL standalone preset's facility file describes the same machine
-as the control-assistant preset's, so every OSPREY demo describes one
-facility. Point ``ttl_path`` at a corpus of your own to seed that instead.
+The control-assistant preset seeds the graph view ``osprey build`` writes from
+its facility file, ``data/graph/facility.ttl`` under the render. No
+hand-written corpus ships. Point ``ttl_path`` at a corpus of your own to seed
+that instead.
 
 .. note::
 
@@ -225,7 +224,7 @@ in that block are doing. A dropped list member needs its own marker: one
 comment does not cover the key beside it.
 
 Which differences are refused and which are only reported is set out under
-:ref:`Preset drift, and osprey profile expand <profile-preset-drift>` in the
+:ref:`Preset drift <profile-preset-drift>` in the
 profile reference.
 
 If the corpus lives in a database other than ``neo4j`` on that store, name it

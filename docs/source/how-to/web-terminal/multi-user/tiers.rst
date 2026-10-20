@@ -413,7 +413,7 @@ The one capability it would be worst to leave open — editing the deployment �
 is guarded by the commands themselves, not only by the preset's choices.
 ``osprey profile validate`` and ``osprey build`` refuse a shared card — one
 whose ``access:`` admits anybody but the card's own login — that resolves to
-a persona holding either deployment-editing
+a persona holding any deployment-editing
 surface, and refuse a privileged ``default_persona`` in a deployment that
 draws a tier split at all; ``osprey up`` asks the same question of the render
 before it starts anything. Each refusal names the user, or the persona, and
@@ -423,17 +423,19 @@ the remedy.
    :icon: shield-check
 
    ``osprey profile validate`` and ``osprey build`` refuse any shared card
-   that resolves to a persona holding either deployment-editing surface — the
-   agent's ``setup_patch`` tool or the web Config panel — naming the user.
+   that resolves to a persona holding any of the three deployment-editing
+   surfaces — the agent's ``setup_patch`` tool, the web Config panel or the
+   scaffold gallery's editors — naming the user.
    Shared means the card's ``access:`` admits anybody but its own login,
    whether that is ``any``, one ``domain:`` or a single ``user:``; the
    question the rule asks is how far the card reaches, not which words say
    so. That refusal does not ask whether your
-   profile drew a tier split: a profile that floors neither surface hands both
-   of them to every persona it has, so a shared card there is the most exposed
+   profile drew a tier split: a profile that floors none of them hands every
+   one to every persona it has, so a shared card there is the most exposed
    version of this rather than an exempt one. The remedy is the card's own
    key — ``access: own``, or dropping the key — or pointing the entry at a
-   persona that holds neither surface.
+   persona that holds none of them. An app card never reaches this rule: the
+   build closes all three surfaces on every app, whatever the host sets.
 
    A privileged ``default_persona`` is refused too, in a deployment that draws
    a privilege split at all — one whose profile floors those surfaces and lets

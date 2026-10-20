@@ -37,19 +37,10 @@ WRITE_GATES = ("approval", "writes-check")
 #: preset name -> the write gates its RESOLVED hook list carries, sorted.
 #:
 #: Resolved rather than raw, deliberately: what matters is what a facility ends
-#: up running. ``control-assistant-logbook`` is the entry that proves the
-#: difference — it inherits ``writes-check`` from ``control-assistant`` and
-#: excludes it again, so its raw file names neither gate and its resolved list
-#: still names one.
+#: up running. A preset that ``extends`` another inherits its hook list, so its
+#: raw file can name neither gate while its resolved list names both.
 PINNED_PRESET_WRITE_GATES: dict[str, tuple[str, ...]] = {
-    "ariel-standalone": ("approval",),
-    "channel-finder-standalone": ("approval",),
     "control-assistant": ("approval", "writes-check"),
-    "control-assistant-admin": ("approval", "writes-check"),
-    "control-assistant-knowledge": ("approval",),
-    "control-assistant-logbook": ("approval",),
-    "control-assistant-readonly": ("approval", "writes-check"),
-    "control-assistant-readwrite": ("approval", "writes-check"),
     "hello-world": ("approval", "writes-check"),
 }
 

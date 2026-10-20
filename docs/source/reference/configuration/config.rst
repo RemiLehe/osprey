@@ -920,21 +920,6 @@ and those artifacts hold values: treat them with the access you give the
 control system's own data. The fields are listed in
 :ref:`audit-trail-tool-call`.
 
-.. _config-ariel-demo-narrative:
-
-``ariel.demo_narrative`` — a demo logbook from the facility's scenarios
------------------------------------------------------------------------
-
-``ariel.demo_narrative`` is ``all`` or a list of scenario names. The logbook
-entries of those scenarios are read from the built simulator view, with the
-pictures they attach. ``osprey up`` seeds them (``nominal`` first, then the
-rest by name) into an empty logbook in place of the active scenarios' entries,
-and ``osprey ariel quickstart`` does the same and then runs the enhancement
-modules. A logbook that already holds entries is never touched. A name the
-simulator view does not list is refused, and so is a directory. The
-``ariel-standalone`` preset sets it to ``all``. Unset, a deploy seeds the
-active scenarios' entries.
-
 .. _config-ariel-entry-url:
 
 ``ariel.entry_url_template`` — links from an answer to the logbook entry

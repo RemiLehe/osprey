@@ -37,21 +37,9 @@ from osprey.cli.build_profile import _load_preset_raw, list_presets
 #: value inherited through ``extends:`` shows up on the base that declares it,
 #: which is where the decision was made.
 PINNED_PRESET_DEPENDENCIES: dict[str, list[str]] = {
-    "ariel-standalone": [],
-    "channel-finder-standalone": [],
     # Emptied when pymongo became a core OSPREY dependency. Before that this
     # read ``[pymongo>=4.0]`` — see the module docstring.
     "control-assistant": [],
-    # The admin tier, added with the tier floor. Empty like its siblings: the
-    # only thing it adds over `control-assistant-readwrite` is the `setup-mode`
-    # skill and the config keys that lift the floor, and a skill OSPREY ships
-    # needs no package a plain `pip install osprey-framework` does not already
-    # bring — the workspace MCP server it drives is framework-side.
-    "control-assistant-admin": [],
-    "control-assistant-knowledge": [],
-    "control-assistant-logbook": [],
-    "control-assistant-readonly": [],
-    "control-assistant-readwrite": [],
     "hello-world": [],
 }
 

@@ -297,8 +297,8 @@ def deployed_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     base = tmp_path_factory.mktemp("dispatch_overlay_build")
     repo = base / PROJECT_NAME
 
-    # This test asserts dispatch overlay/trigger behavior, not persona
-    # routing -- drop the preset's web-terminal stack (two persona images +
+    # This test asserts dispatch overlay/trigger behavior, not render
+    # routing -- drop the preset's web-terminal stack (two render images +
     # nginx, all built locally on `up`) so the deploy only builds the
     # dispatcher/worker images it actually exercises. Web-terminals coverage
     # lives in control-assistant-demo-e2e / multi-user-deploy-lifecycle-e2e /

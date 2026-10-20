@@ -2228,11 +2228,11 @@ def _render_variant(
         config["modules.web_terminals"] = {
             "enabled": True,
             "image_source": "registry",
-            "default_persona": "assistant",
+            "default_tier": "assistant",
             "users": [{"name": name, "index": index} for index, name in enumerate(roster)],
             "auth": {"method": "password", "allow_insecure_http": True},
         }
-        config["modules.web_terminals.personas"] = {
+        config["modules.web_terminals.renders"] = {
             "assistant": {"project": f"{PROJECT_NAME}-assistant"}
         }
     if bluesky:

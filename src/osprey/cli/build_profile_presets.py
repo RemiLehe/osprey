@@ -15,8 +15,10 @@ from pathlib import Path
 from typing import Any
 
 from osprey_connectors.errors import BuildProfileError
+from osprey_connectors.workspace import APPS_DIRNAME, TIERS_DIRNAME
 
 from .build_profile_document import _read_profile_document
+from .profile_root import ProfileKind
 
 _PRESETS_PACKAGE = "osprey.profiles.presets"
 
@@ -139,13 +141,115 @@ def _preset_exists(name: str) -> Path | None:
     return candidate if candidate.is_file() else None
 
 
-def list_presets() -> list[str]:
-    """Return the sorted list of bundled preset names (hyphenated)."""
+def _yaml_stems(directory: Path) -> list[str]:
+    """Sorted stems of the ``*.yml`` files directly in *directory*, ``_``-prefixed skipped."""
+    if not directory.is_dir():
+        return []
     return sorted(
         p.name.removesuffix(".yml")
-        for p in _presets_dir().iterdir()
-        if p.name.endswith(".yml") and not p.name.startswith("_")
+        for p in directory.iterdir()
+        if p.is_file() and p.name.endswith(".yml") and not p.name.startswith("_")
     )
+
+
+def list_presets() -> list[str]:
+    """Return the sorted list of bundled deployment preset names (hyphenated).
+
+    Deployments only: the bundled tiers and apps live one directory down and
+    are listed by :func:`list_tiers` and :func:`list_apps`.
+    """
+    return _yaml_stems(_presets_dir())
+
+
+#: The packaged subdirectory each layer kind's bundled files live in.
+_LAYER_PRESET_DIRNAMES: dict[ProfileKind, str] = {
+    ProfileKind.TIER: TIERS_DIRNAME,
+    ProfileKind.APP: APPS_DIRNAME,
+}
+
+
+def _layer_presets_dir(kind: ProfileKind) -> Path:
+    """The packaged directory holding the bundled files of layer *kind*."""
+    return _presets_dir() / _LAYER_PRESET_DIRNAMES[kind]
+
+
+def list_tiers() -> list[str]:
+    """Return the sorted list of bundled tier names (``presets/tiers/``)."""
+    return _yaml_stems(_layer_presets_dir(ProfileKind.TIER))
+
+
+def list_apps() -> list[str]:
+    """Return the sorted list of bundled app names (``presets/apps/``)."""
+    return _yaml_stems(_layer_presets_dir(ProfileKind.APP))
+
+
+def layer_preset_kind(name: str) -> ProfileKind | None:
+    """The layer kind a bundled tier or app called *name* has, or ``None``.
+
+    ``None`` for a deployment preset and for a name nothing bundles. Accepts
+    either CLI spelling, like every preset lookup.
+    """
+    normalized = _normalize_preset_name(name)
+    for kind in _LAYER_PRESET_DIRNAMES:
+        if (_layer_presets_dir(kind) / f"{normalized}.yml").is_file():
+            return kind
+    return None
+
+
+def _layer_refusal(subject: str, name: str, kind: ProfileKind) -> str:
+    """The one sentence a tier or app gets where a deployment was expected."""
+    folder = _LAYER_PRESET_DIRNAMES[kind]
+    return (
+        f"{subject} is a {kind.value}, not a deployment. It renders inside a repo: "
+        f"`osprey init <dir> --preset control-assistant` writes {folder}/{name}.yml, "
+        f"and `osprey build` there renders build/<project>-{name}"
+    )
+
+
+def layer_preset_refusal(name: str) -> str | None:
+    """Why *name* cannot stand where a deployment preset is expected, or ``None``.
+
+    The refusal ``osprey init --preset``, ``osprey build --preset``,
+    ``osprey validate`` and ``osprey set`` share for a bundled tier or app:
+    the name is a real file in the package, just not a deployment, so
+    "unknown preset" would send the operator looking for a typo.
+    """
+    kind = layer_preset_kind(name)
+    if kind is None:
+        return None
+    normalized = _normalize_preset_name(name)
+    return _layer_refusal(f"`{normalized}`", normalized, kind)
+
+
+def bundled_layer_file_refusal(path: Path) -> str | None:
+    """The kind refusal for *path* when it is a bundled tier or app file, else ``None``.
+
+    A bundled tier or app file is a template for a repo's ``tiers/`` or
+    ``apps/``; it has no root profile beside it, so no verb acts on it in place.
+    """
+    resolved = path.resolve()
+    for kind in _LAYER_PRESET_DIRNAMES:
+        if resolved.parent == _layer_presets_dir(kind).resolve() and resolved.suffix == ".yml":
+            stem = resolved.stem
+            return _layer_refusal(f"`{stem}`", stem, kind)
+    return None
+
+
+def bundled_layer_dir_refusal(path: Path) -> str | None:
+    """The kind refusal for *path* when it lies in a bundled tier or app directory.
+
+    For a verb that takes a directory, such as ``osprey set --repo``: standing
+    in ``presets/tiers/`` or ``presets/apps/`` names every file there at once.
+    """
+    resolved = path.resolve()
+    for kind in _LAYER_PRESET_DIRNAMES:
+        layer_dir = _layer_presets_dir(kind).resolve()
+        if resolved == layer_dir or layer_dir in resolved.parents:
+            names = list_tiers() if kind is ProfileKind.TIER else list_apps()
+            listed = ", ".join(f"`{n}`" for n in names) or f"`{layer_dir.name}`"
+            subject = f"{layer_dir} holds bundled {kind.value}s; each of {listed}"
+            return _layer_refusal(subject, "<name>", kind)
+    return None
 
 
 def _read_preset_document(name: str) -> tuple[dict[str, Any], Path]:
@@ -161,6 +265,9 @@ def _read_preset_document(name: str) -> tuple[dict[str, Any], Path]:
     normalized = _normalize_preset_name(name)
     target = _presets_dir() / f"{normalized}.yml"
     if not target.exists():
+        refusal = layer_preset_refusal(name)
+        if refusal is not None:
+            raise BuildProfileError(refusal)
         available = ", ".join(list_presets()) or "(none)"
         raise BuildProfileError(f"Unknown preset {name!r}. Available: {available}")
     raw = _read_profile_document(target, source=f"preset {name!r}")
@@ -219,9 +326,19 @@ def preset_data_bundle(name: str | None) -> str:
     Returns:
         The bundle the chain names, or :data:`DEFAULT_DATA_BUNDLE` when the
         name is ``None``, names no bundled preset, or the chain names none.
+
+    Raises:
+        BuildProfileError: When *name* is a bundled app. An app has no data
+            bundle of its own; its render uses its deployment's, so asking an
+            app for one is a caller that lost track of the deployment.
     """
     if not name:
         return DEFAULT_DATA_BUNDLE
+    if layer_preset_kind(name) is ProfileKind.APP:
+        raise BuildProfileError(
+            f"{layer_preset_refusal(name)}. Its data bundle is its deployment's; "
+            "ask the deployment preset instead."
+        )
     return _nearest_preset_value(name, PRESET_DATA_BUNDLE_KEY) or DEFAULT_DATA_BUNDLE
 
 

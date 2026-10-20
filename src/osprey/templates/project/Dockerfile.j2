@@ -344,10 +344,10 @@ RUN groupadd --gid 1000 osprey \
     fi{% endif %}
 
 {% if is_setup_patch_capable %}
-# This persona keeps the setup capability — its permission render leaves
+# This tier keeps the setup capability — its permission render leaves
 # `mcp__osprey_workspace__setup_patch` outside the deny list — so the one file
 # that capability exists to edit is handed to the agent's user. Rendered ONLY
-# for such a persona: for every other tier this line is absent and `config.yml`
+# for such a tier: for every other tier this line is absent and `config.yml`
 # stays root-owned, which is what makes the tier boundary a filesystem fact
 # rather than a permission list the agent is asked to respect.
 RUN chown osprey:osprey /app/{{ project_name }}/build/config.yml

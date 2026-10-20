@@ -185,10 +185,8 @@ The config block
                     build_profile: personas/admin.yml
                   logbook:
                     build_profile: personas/logbook.yml
-                    landing_group: Standalone deployments
                   knowledge:
                     build_profile: personas/knowledge.yml
-                    landing_group: Standalone deployments
 
          Each ``build_profile`` names that persona's **delta** in the deployment
          repository — the file ``osprey init`` writes under ``personas/`` and
@@ -250,12 +248,11 @@ The config block
          browsers should open in ``deploy.fqdn`` or ``external_origin``. See
          :ref:`multi-user-https`.
 
-         A persona may also name a landing-page section with ``landing_group``.
-         Its users are lifted out of the roster's default section into one of
-         that name, drawn as a panel — which is how the page shows a standalone
-         service as something other than another login. The ``users`` group takes
-         a ``label`` for the same reason: so both halves can be named. Neither
-         changes anything about a container.
+         ``landing.groups`` lists the page's sections in order: ``users`` (the
+         people), ``apps`` (one card per ``shared:`` app, drawn as a panel and
+         titled by the app's ``name:``) and ``links``. Left out, the page shows
+         people, then apps. Each group takes a ``label``; the apps panel is
+         headed "Apps" by default. Neither changes anything about a container.
 
          .. tip::
 
@@ -429,24 +426,25 @@ Pull the terminal images from a registry
 ----------------------------------------
 
 With ``image_source: registry`` (the value whenever the key is unset),
-``osprey up`` builds no terminal image. It pulls one image per persona, under
-names it derives itself.
+``osprey up`` builds no terminal image. It pulls one image per render (each
+tier the roster uses and each shared app), under names it derives itself.
 
 .. list-table::
    :header-rows: 1
 
    * - Who pulls it
      - Image
-   * - The ``default_persona``
+   * - The ``default_tier``
      - ``<registry.url>/web-terminal:<tag>``
-   * - Every other persona
-     - ``<registry.url>/web-terminal-<persona>:<tag>``
+   * - Every other tier, and every shared app
+     - ``<registry.url>/web-terminal-<render>:<tag>``
 
-``<persona>`` is the persona's key in the ``personas`` catalog, not its
-``project``. The ``project`` is ``<project_name>-<persona>``, which the build
-derives from the profile's ``project_name:``.
-A persona whose image is built elsewhere states its ``project``, the project
-the image was built from, and its terminal runs in ``/app/<project>``.
+``<render>`` is the tier's or app's file name (``tiers/<name>.yml``,
+``apps/<name>.yml``), not its ``project``. The build derives the ``project`` as
+``<project_name>-<render>`` from the profile's ``project_name:``.
+A tier or app whose image is built elsewhere states its ``project``, the
+project the image was built from, in its own file (and may state its
+``image``); its terminal runs in ``/app/<project>``.
 
 ``<tag>`` is ``modules.web_terminals.image_tag``, ``latest`` when unset.
 A ``${VAR}`` in it is expanded from the environment of ``osprey up``, and a
@@ -458,7 +456,6 @@ variable that is unset there expands to nothing.
 scheme.
 It is the only namespace: two deployments that share a registry keep their
 images apart by giving ``registry.url`` different paths.
-There is no per-persona ``image:`` key.
 
 When the profile has a ``deploy:`` block in registry mode, the build writes
 ``deploy.registry.url`` into this ``registry.url``, so the registry is named once.
@@ -470,9 +467,9 @@ A profile with no ``deploy:`` block sets it there.
 The scaffolded pipeline builds only the facility's own service images, not
 these, so the facility's pipeline must push them.
 Put that job in ``ci-extra.yml`` (see :doc:`../../deploy-a-facility`).
-Build each image from that persona's rendered project,
-``build/<project_name>-<persona>``: the same render ``image_source: local``
-builds as ``<project_name>-<persona>:local``.
+Build each image from its rendered project, ``build/<project_name>-<render>``:
+the same render ``image_source: local`` builds as
+``<project_name>-<render>:local``.
 
 Registry mode also pulls the auth sidecar from
 ``modules.web_terminals.auth.image`` when login is on; see :doc:`login`.
@@ -481,13 +478,15 @@ Registry mode also pulls the auth sidecar from
 ``osprey build`` refuse a registry-mode config with no ``registry.url`` (code
 ``web_terminals.registry_mode_missing_url``).
 ``osprey up`` refuses to render it.
-They also refuse a config with web terminals enabled and no ``personas``
-catalog or no ``default_persona``, in either image source (code
-``web_terminals.requires_catalog``), and an in-effect persona with neither
-``build_profile`` nor ``project`` (code ``web_terminals.persona_missing_project``);
-``osprey up`` refuses both before it mints anything.
+They also refuse a config with web terminals enabled and no tier files (so no
+render catalog) or no ``default_tier``, in either image source (code
+``web_terminals.requires_catalog``), and a tier or app whose image is built
+elsewhere and states no ``project`` (code
+``web_terminals.render_missing_project``); ``osprey up`` refuses both before it
+mints anything.
 
-For example, with this config:
+For example, with ``tiers/readonly.yml`` and ``tiers/readwrite.yml`` in the repo
+and this config:
 
 .. code-block:: yaml
 
@@ -497,18 +496,13 @@ For example, with this config:
    modules:
      web_terminals:
        image_tag: "2026.09.1"
-       default_persona: readonly
+       default_tier: readonly
        users:
        - name: alice
          index: 0
-         persona: readwrite
+         tier: readwrite
        - name: bob
          index: 1
-       personas:
-         readonly:
-           build_profile: personas/readonly.yml
-         readwrite:
-           build_profile: personas/readwrite.yml
 
 ``osprey up`` pulls:
 
@@ -517,7 +511,7 @@ For example, with this config:
    alice  registry.example.org/accelerator/demo/web-terminal-readwrite:2026.09.1
    bob    registry.example.org/accelerator/demo/web-terminal:2026.09.1
 
-``bob`` names no persona, so he gets the ``default_persona`` and the unsuffixed
+``bob`` names no tier, so ``bob`` gets the ``default_tier`` and the unsuffixed
 image.
 
 The landing page
@@ -529,7 +523,7 @@ each labelled with the persona it resolves to:
 .. figure:: /_static/resources/multi_user_landing.png
    :alt: The multi-user landing page — alice's, bob's and carol's cards under
          a Users heading, and the logbook and knowledge terminals in a
-         Standalone deployments panel beneath them
+         panel headed Apps beneath them
    :align: center
    :width: 100%
 
@@ -542,9 +536,10 @@ bob the readonly one; the preset's roster adds carol on the admin tier, last
 so the operator cards keep their ports. (A bare roster entry would fall back to the
 preset's ``default_persona``, readonly, so an implicit user always lands on
 the safe side.) The logbook and knowledge cards sit apart, in the
-accent-edged panel their personas' ``landing_group`` names — and carry no
-persona badge, because the badge answers *which tier is this user on?* and
-here the card and its persona are the same word. Both are shared cards: the
+accent-edged Apps panel, each titled by its app's ``name:`` — and carry no
+tier badge, because an app is not a person on a tier. An app card can never
+write to the machine or change the deployment, whatever the host sets. Both are
+shared cards: the
 login page asks for a roster name and that person's password, so nobody needs
 a credential for the card itself. Clicking any card opens that session at
 ``/u/<name>/``, proxied by nginx to its own container.

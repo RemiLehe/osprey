@@ -160,8 +160,8 @@ def test_preset_web_panels_against_registry(preset: str) -> None:
     Plus the third case the Reach Contract introduced, which is why this check
     reads the registry rather than a hardcoded pair: a panel whose URL the
     build DERIVES is legitimately url-less in the preset. The deploying profile
-    derives it from its own sidecar block, and an attached persona is told it
-    by projection from the hosting render — so a persona preset that spelled
+    derives it from its own sidecar block, and an attached render is told it
+    by projection from the hosting render — so a tier preset that spelled
     the URL would be stating a fact it cannot keep true. This scan sees only
     what the preset chain itself declares, not what a deployment's sidecar
     block would add; the build-time refusal for a selected panel the deployment
@@ -296,7 +296,7 @@ def test_slash_commands_resolve_targets() -> None:
 
 #: Values a shipped preset must not write as a live key. Each is the OSPREY
 #: project's own address, not a facility's: rendered live, `osprey init` copies
-#: it into the operator's profile.yml and `osprey profile expand` puts it back,
+#: it into the operator's profile.yml and `osprey init --revalidate` puts it back,
 #: so every deployment carries the maintainers' mailbox, tracker or
 #: documentation site as if it had chosen it. The code defaults still supply
 #: them, and each preset documents the key as a commented example, so nothing

@@ -240,7 +240,7 @@ class GenericJSONAdapter(FacilityAdapter):
     def _convert_entry(self, data: dict[str, Any]) -> EnhancedLogbookEntry:
         """Convert generic JSON entry to EnhancedLogbookEntry."""
         # Facility zone, not UTC: a relative ``{days_ago, time}`` spec resolves its
-        # time-of-day in this anchor's zone, so seeded demo narrative lands at the
+        # time-of-day in this anchor's zone, so a seeded scenario narrative lands at the
         # documented facility-local clock time (matching the telemetry it
         # accompanies). Absolute timestamps ignore ``now`` (see _resolve_timestamp).
         now = datetime.now(get_facility_timezone())

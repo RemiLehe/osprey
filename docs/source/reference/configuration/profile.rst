@@ -384,8 +384,8 @@ Three rules follow from the catalog being the one home for these facts:
 - A catalog that no longer matches the one OSPREY ships is reported as a note,
   never a refusal — the comparison is with the catalog this OSPREY release
   ships, not with the hash recorded under ``provenance:``.
-  ``osprey profile expand --providers`` refreshes the entries OSPREY ships and
-  keeps the ones you added.
+  ``osprey init --revalidate`` refreshes the entries OSPREY ships and keeps the
+  ones you added.
 
 .. _profile-posture-floor:
 
@@ -427,8 +427,8 @@ control system to state a type for.
 
 .. _profile-preset-drift:
 
-Preset drift, and ``osprey profile expand``
-===========================================
+Preset drift
+============
 
 A profile ``osprey init`` wrote records the preset it came from under
 ``provenance:``. ``osprey validate`` compares the two and splits what it finds:
@@ -454,16 +454,14 @@ level. Such a profile is refused, naming that key and the verb that fixes it:
 
 .. code-block:: bash
 
-   osprey profile expand                          # preset from provenance:
-   osprey profile expand --from control-assistant # or name it
-   osprey profile expand --providers              # refresh providers.yml too
+   osprey init --revalidate                            # preset from provenance:
+   osprey init --revalidate --preset control-assistant # or name it
 
-``expand`` writes every key the preset documents and the profile lacks into the
+It writes every key the preset documents and the profile lacks into the
 profile's own ``config:`` block, each under the comment the preset documents it
-with, and drops that retired key. It only adds — nothing
-already in the file is touched — so running it twice leaves the profile exactly
-as the first run left it. See :ref:`cli-profile-expand` for the two classes of
-key it deliberately leaves out and for what it prints.
+with, drops that retired key, and refreshes ``providers.yml``. It only adds —
+nothing already in the file is touched — and your deployment's own selections
+are left for you and named in the output.
 
 .. _profile-mcp-servers:
 
@@ -865,6 +863,12 @@ the deployment into the event dispatcher and its workers.
      - ``[]``
      - Host environment variable names passed through to both halves, in the
        order you write them. Names only, never values.
+   * - ``tier``
+     - *(unset)*
+     - The tier the dispatch workers run at: a file in ``tiers/``. Unset runs
+       the deployment's own render. A tier that lifts a base deny or turns on
+       an approval surface is refused, since a dispatched run has no approver,
+       so the bundled ``admin`` tier is refused.
 
 .. _profile-graph-mode:
 

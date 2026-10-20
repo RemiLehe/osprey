@@ -40,14 +40,14 @@ this lane's web-terminal stanza, and ``osprey build`` renders ``build/``. The
 repo's DIRECTORY NAME is the deployment name, so it is also the compose project
 name and the ``com.osprey.project`` label T1 asserts.
 
-The persona catalog is added to ``profile.yml`` between those two commands,
+The render catalog is added to ``profile.yml`` between those two commands,
 which is the documented way to hand-write one: materialization requires every
 catalog entry to name a preset that extends the host preset, and this lane
-deliberately supplies a hand-written stub project instead of a rendered persona
-(see below). A start accepts that — it verifies each referenced persona HAS a
+deliberately supplies a hand-written stub project instead of a rendered render
+(see below). A start accepts that — it verifies each referenced render HAS a
 usable project (``config.yml`` + ``Dockerfile``) and renders none itself.
 
-WHY THE PERSONA STUB SERVES HTTP HERE
+WHY THE RENDER STUB SERVES HTTP HERE
 -------------------------------------
 The other lifecycle fixtures use an alpine stub that only idles (``tail -f
 /dev/null``), which is enough to inspect and exec into. That is NOT enough here:
@@ -58,8 +58,8 @@ failures. The stub below serves one byte-identifiable page over busybox
 produced — the positive control that distinguishes "auth let it through" from
 "auth let it through and the proxy pointed somewhere else".
 
-It is a stub for the same reason the sidecar is not: a real persona image is a
-full framework install per persona, and this lane's subject is the perimeter in
+It is a stub for the same reason the sidecar is not: a real render image is a
+full framework install per render, and this lane's subject is the perimeter in
 front of the terminal, not the terminal.
 
 COST, AND WHY THIS IS ITS OWN LANE
@@ -127,8 +127,8 @@ PROJECT_NAME = "osprey-e2e-auth-perimeter"
 #: are named by.
 PROJECT = resolve_project_name({"project_name": PROJECT_NAME})
 PREFIX = "authe2e"
-PERSONA = "operator"
-PERSONA_PROJECT = f"{PREFIX}-operator"
+RENDER = "operator"
+RENDER_PROJECT = f"{PREFIX}-operator"
 USERS = ("alice", "bob")
 #: The preset the repo is materialized from — the smallest one that builds.
 PRESET = "hello-world"
@@ -151,10 +151,10 @@ BASE_PORTS = {
 UPSTREAM_MARKER = "osprey-e2e-auth-perimeter upstream"
 
 AUTH_IMAGE_TAG = f"{PROJECT}-auth:local"
-# `<catalog project>:local`, exactly as resolve_personas derives a
-# local-mode persona tag. Teardown-only, but spelled the way the render spells
+# `<catalog project>:local`, exactly as resolve_cards derives a
+# local-mode render tag. Teardown-only, but spelled the way the render spells
 # it so an `rmi` here removes the tag this deploy actually built.
-PERSONA_IMAGE_TAG = f"{PERSONA_PROJECT}:local"
+RENDER_IMAGE_TAG = f"{RENDER_PROJECT}:local"
 
 NGINX_C = f"{PROJECT}-nginx"
 AUTH_C = f"{PROJECT}-auth"
@@ -251,8 +251,8 @@ def _logs(name: str) -> str:
     return f"--- {name} stdout ---\n{result.stdout}\n--- {name} stderr ---\n{result.stderr}"
 
 
-def _write_persona_project(root: Path) -> Path:
-    """A minimal local-mode persona project whose stub actually SERVES.
+def _write_render_project(root: Path) -> Path:
+    """A minimal local-mode render project whose stub actually SERVES.
 
     Beyond what the idling lifecycle stub provides (a ``dispatch`` user and the
     two mount-point directories the per-user compose service declares volumes
@@ -262,12 +262,12 @@ def _write_persona_project(root: Path) -> Path:
     namespace and is the only thing meant to reach a per-user port.
 
     ``config.yml`` and ``Dockerfile`` are the two files a start requires of a
-    persona's rendered project (``_check_existing_render``) — in BOTH copies a
+    render's rendered project (``_check_existing_render``) — in BOTH copies a
     real build produces: the flat host render at the project path, and the
     container copy at the ``.image/<name>`` sibling whose ``build/Dockerfile``
-    is what the persona image is actually built from
-    (``_persona_image_context``). The stub writes the same two files into each,
-    which is why something this small is accepted where a rendered persona
+    is what the render image is actually built from
+    (``_render_image_context``). The stub writes the same two files into each,
+    which is why something this small is accepted where a rendered render
     would otherwise be.
 
     ``busybox-extras`` is REQUIRED and easy to lose: alpine's default busybox
@@ -277,9 +277,9 @@ def _write_persona_project(root: Path) -> Path:
     container that never stayed up.
     """
     root.mkdir(parents=True)
-    config_text = f"project_name: {PERSONA_PROJECT}\n"
+    config_text = f"project_name: {RENDER_PROJECT}\n"
     (root / "config.yml").write_text(config_text, encoding="utf-8")
-    container_dir = f"/app/{PERSONA_PROJECT}"
+    container_dir = f"/app/{RENDER_PROJECT}"
     (root / "Dockerfile").write_text(
         "FROM alpine:3.20\n"
         # busybox-extras carries the httpd applet; the base busybox does not.
@@ -357,7 +357,7 @@ def _profile_edits() -> dict[str, Any]:
             "modules.web_terminals": {
                 "enabled": True,
                 "image_source": "local",
-                "default_persona": PERSONA,
+                "default_tier": RENDER,
                 "nginx_port": NGINX_PORT,
                 "web_base_port": BASE_PORTS["web"],
                 "artifact_base_port": BASE_PORTS["artifact"],
@@ -375,17 +375,17 @@ def _profile_edits() -> dict[str, Any]:
     }
 
 
-def _add_persona_catalog(repo: Path, persona_path: Path) -> None:
-    """Point the profile's persona catalog at the hand-written stub project.
+def _add_render_catalog(repo: Path, render_path: Path) -> None:
+    """Point the profile's render catalog at the hand-written stub project.
 
     After materialization, deliberately. ``osprey init`` renders one delta per
     catalog entry and requires each entry to name a preset that EXTENDS the host
-    preset — the shape a rendered persona has. This lane's persona is a stub
+    preset — the shape a rendered render has. This lane's render is a stub
     project instead (see the module docstring), so the entry is added to
     ``profile.yml`` once the repo exists and before ``osprey build`` reads it,
-    which is the remedy materialization itself names for a hand-written persona.
+    which is the remedy materialization itself names for a hand-written render.
 
-    Written as the dotted key ``modules.web_terminals.personas``, the same
+    Written as the dotted key ``modules.web_terminals.renders``, the same
     spelling the lane's own edits use: a profile's ``config:`` is a flat bag
     of dotted paths into the rendered config, and one more path is how a
     catalog joins the stanza the edits already wrote.
@@ -396,19 +396,19 @@ def _add_persona_catalog(repo: Path, persona_path: Path) -> None:
     """
     profile_path = repo / "profile.yml"
     profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
-    profile["config"]["modules.web_terminals.personas"] = {
-        PERSONA: {"project": PERSONA_PROJECT, "project_path": str(persona_path)}
+    profile["config"]["modules.web_terminals.renders"] = {
+        RENDER: {"project": RENDER_PROJECT, "project_path": str(render_path)}
     }
     profile_path.write_text(yaml.safe_dump(profile, sort_keys=False), encoding="utf-8")
 
 
 def _make_repo(tmp_path: Path, osprey_bin: Path) -> Path:
-    """``init`` + persona catalog + ``build`` — the repo this lane deploys.
+    """``init`` + render catalog + ``build`` — the repo this lane deploys.
 
     ``--skip-deps``/``--skip-lifecycle`` keep the render off the network and
     quick: nothing here runs the deployment's own venv, only its containers.
     """
-    persona_path = _write_persona_project(tmp_path / "persona")
+    render_path = _write_render_project(tmp_path / "tier")
     repo = tmp_path / PROJECT_NAME
 
     init = _run_osprey(
@@ -426,7 +426,7 @@ def _make_repo(tmp_path: Path, osprey_bin: Path) -> Path:
     )
     assert init.returncode == 0, _fmt("osprey init (auth perimeter)", init)
 
-    _add_persona_catalog(repo, persona_path)
+    _add_render_catalog(repo, render_path)
 
     build = _run_osprey(
         osprey_bin,
@@ -459,7 +459,7 @@ def _teardown() -> None:
     _runtime_cli("rm", "-f", NGINX_C)
     _runtime_cli("compose", "-p", PROJECT_NAME, "down", timeout=60)
     remove_project_volumes(PROJECT_NAME, runtime=RUNTIME)
-    for tag in (AUTH_IMAGE_TAG, PERSONA_IMAGE_TAG):
+    for tag in (AUTH_IMAGE_TAG, RENDER_IMAGE_TAG):
         _runtime_cli("rmi", "-f", tag, timeout=60)
 
 
