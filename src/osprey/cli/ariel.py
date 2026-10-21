@@ -527,19 +527,15 @@ def _anchor_project_config(ctx: click.Context) -> None:
     (:func:`osprey.cli.project_utils.resolve_config_path`) and anchored for
     the life of the command.
 
-    An exported ``CONFIG_FILE`` names the config outright and is left to
-    answer. With no config to find, nothing is anchored: a verb that needs
-    none (``vocab-check PATH``, ``--help``) still runs, and one that needs one
-    reports it missing.
+    No environment variable takes part: one naming another deployment must
+    not change which deployment the command typed here acts on. With no config
+    to find, nothing is anchored: a verb that needs none (``vocab-check PATH``,
+    ``--help``) still runs, and one that needs one reports it missing.
     """
-    import os
-
     from osprey_connectors.config import config_anchored_at
 
     from .project_utils import resolve_config_path
 
-    if os.environ.get("CONFIG_FILE"):
-        return
     config_path = Path(resolve_config_path())
     if config_path.is_file():
         ctx.with_resource(config_anchored_at(config_path))

@@ -82,9 +82,10 @@ def test_the_anchor_does_not_outlive_the_command(deployment: Path, monkeypatch: 
     assert config_module.default_config_path() is None
 
 
-def test_an_exported_config_file_still_wins(
+def test_an_ambient_config_file_does_not_redirect_the_command(
     deployment: Path, tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
 ):
+    """A CONFIG_FILE naming another deployment must not change which one acts."""
     other = tmp_path_factory.mktemp("other") / "config.yml"
     vocab = other.parent / "elsewhere.yml"
     vocab.write_text(
@@ -100,4 +101,4 @@ def test_an_exported_config_file_still_wins(
     result = CliRunner().invoke(ariel_group, ["vocab-check"])
 
     assert result.exit_code == 0, result.output
-    assert "Vocabulary OK: 2 concepts" in result.output
+    assert "Vocabulary OK: 1 concept" in result.output

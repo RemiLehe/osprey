@@ -1165,8 +1165,7 @@ osprey ariel
 ============
 
 Manage the ARIEL logbook search service. Run from anywhere inside a deployment
-repo: the commands read its ``build/config.yml``, or the file ``CONFIG_FILE``
-names.
+repo: the commands read its ``build/config.yml``.
 
 ``osprey ariel quickstart [--source PATH]``
    Full setup: migrate, then ingest ``--source`` or the configured ingestion
