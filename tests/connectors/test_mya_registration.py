@@ -62,7 +62,7 @@ class TestBuiltinRegistration:
         canonical = "osprey_connectors.archiver._mya_archiver_connector"
         cached = sys.modules.get(canonical)
         # The re-import rebinds the package attribute; put it back afterwards.
-        monkeypatch.setattr(archiver_pkg, "mya_archiver_connector", cached, raising=False)
+        monkeypatch.setattr(archiver_pkg, "_mya_archiver_connector", cached, raising=False)
 
         with (
             patch.dict(sys.modules, {"jlab_archiver_client": None}),
