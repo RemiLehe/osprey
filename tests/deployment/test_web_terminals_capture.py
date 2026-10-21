@@ -174,7 +174,11 @@ def _stub_render_builds(monkeypatch, tmp_path, units, build_cmd=None):
     """Neuter everything around the render build except the run itself."""
     monkeypatch.chdir(tmp_path)  # resolve_repo_root -> tmp_path
     monkeypatch.setattr(render_images, "get_runtime_command", lambda config: ["docker"])
-    monkeypatch.setattr(render_images, "_referenced_renders", lambda config, users: units)
+    monkeypatch.setattr(
+        render_images,
+        "_referenced_renders",
+        lambda config, users, *, serves_roster=True: units,
+    )
     monkeypatch.setattr(
         render_images,
         "_render_image_build_cmd",
