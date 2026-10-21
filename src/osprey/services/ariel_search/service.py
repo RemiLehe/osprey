@@ -1138,17 +1138,34 @@ class ARIELSearchService:
         await self.pool.close()
 
 
+_MAX_FILENAME_BYTES = 255
+
+
+def _fit_filename(name: str) -> str:
+    """*name* cut to fit a filesystem's name limit, keeping its extension."""
+    if len(name.encode()) <= _MAX_FILENAME_BYTES:
+        return name
+    stem, dot, suffix = name.rpartition(".")
+    if not dot or len(suffix.encode()) > 16:
+        stem, dot, suffix = name, "", ""
+    room = _MAX_FILENAME_BYTES - len((dot + suffix).encode())
+    return stem.encode()[:room].decode(errors="ignore") + dot + suffix
+
+
 def _stage_files(directory: Path, attachments: Sequence[EntryAttachment]) -> list[str]:
     """Write each file to its own subdirectory under its base name; return the paths.
 
     The subdirectory per file keeps two files of the same name apart, and the
     base name keeps a submitted name from placing a file outside ``directory``.
+    A name no filesystem accepts (a NUL byte, more than 255 bytes) is cut to one
+    that it does, keeping the extension, so an odd name never fails the submit.
     """
     paths: list[str] = []
     for index, attachment in enumerate(attachments):
-        name = attachment.filename.replace("\\", "/").rsplit("/", 1)[-1]
+        name = attachment.filename.replace("\\", "/").rsplit("/", 1)[-1].replace("\0", "")
         if name in ("", ".", ".."):
             name = "attachment"
+        name = _fit_filename(name)
         slot = directory / str(index)
         slot.mkdir()
         path = slot / name

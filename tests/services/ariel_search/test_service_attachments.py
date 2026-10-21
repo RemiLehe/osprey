@@ -369,3 +369,23 @@ async def test_republish_with_a_missing_native_copy_publishes_nothing(
         await service.publish_entry("ariel-abc")
 
     assert adapter.requests == []
+
+
+def test_staging_fits_a_name_no_filesystem_accepts(tmp_path):
+    """A NUL byte or an over-long name is cut to a valid one, keeping the extension."""
+    from osprey.services.ariel_search.models import EntryAttachment
+    from osprey.services.ariel_search.service import _stage_files
+
+    long_name = "é" * 200 + ".png"
+    paths = _stage_files(
+        tmp_path,
+        [
+            EntryAttachment(filename="sc\0an.h5", mime_type=None, data=b"a"),
+            EntryAttachment(filename=long_name, mime_type="image/png", data=b"b"),
+        ],
+    )
+
+    first, second = (Path(p) for p in paths)
+    assert first.name == "scan.h5" and first.read_bytes() == b"a"
+    assert second.suffix == ".png" and len(second.name.encode()) <= 255
+    assert second.read_bytes() == b"b"
