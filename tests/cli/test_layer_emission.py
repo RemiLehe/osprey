@@ -298,6 +298,63 @@ def test_role_and_dispatch_tiers_are_named_too() -> None:
     assert _roster_layers(config, None) == (["readonly", "readwrite"], ["knowledge"])
 
 
+def test_without_web_terminals_only_the_dispatch_tier_is_named() -> None:
+    """A deployment without web terminals deploys no roster, but its dispatch
+    workers still run their tier."""
+    from osprey.cli.profile_cmd import _roster_layers
+
+    config = {
+        "modules.web_terminals": {
+            "enabled": False,
+            "default_tier": "readonly",
+            "authorization": {"roles": {"operator": {"tier": "readwrite"}}},
+            "users": [{"name": "alice", "index": 0, "tier": "admin"}],
+            "shared": ["knowledge"],
+        }
+    }
+
+    assert _roster_layers(config, "readonly") == (["readonly"], [])
+    assert _roster_layers(config, None) == ([], [])
+
+
+def test_the_control_assistant_preset_runs_its_dispatch_workers_read_only() -> None:
+    """A dispatched job has nobody to approve a write, so the shipped default is
+    the read-only tier; a deployment that wants a writer says so."""
+    preset, _dir = resolve_build_profile(None, "control-assistant")
+
+    assert preset.dispatch is not None
+    assert preset.dispatch.tier == "readonly"
+
+
+def test_a_backend_only_deployment_writes_and_builds_its_dispatch_tier(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    """Switching the web terminals off keeps the dispatch workers on their tier:
+    init writes that tier's file, and the build renders it and names it."""
+    from osprey.cli.build_cmd import build
+
+    target = tmp_path / "backend-only"
+    result = _new(
+        runner,
+        target,
+        "control-assistant",
+        "--set",
+        "config.modules.web_terminals.enabled=false",
+    )
+
+    assert result.exit_code == 0, result.output
+    assert _layer_names(target, "tiers") == {"readonly"}
+    assert _layer_names(target, "apps") == set()
+
+    built = CliRunner().invoke(build, ["--repo", str(target), "--skip-deps", "--skip-lifecycle"])
+
+    assert built.exit_code == 0, built.output
+    assert (target / "build" / "backend-only-readonly" / "Dockerfile").is_file()
+    rendered = yaml.safe_load((target / "build" / "config.yml").read_text(encoding="utf-8"))
+    assert rendered["services"]["dispatch_worker"]["tier"] == "readonly"
+    assert rendered["modules"]["web_terminals"]["renders"]["readonly"]["kind"] == "tier"
+
+
 def test_a_preset_without_web_terminals_writes_no_tiers_or_apps(
     runner: CliRunner, tmp_path: Path
 ) -> None:

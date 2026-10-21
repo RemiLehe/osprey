@@ -208,26 +208,36 @@ def _layer_top_level(path: Path) -> Mapping[str, Any]:
 
 
 def derived_renders(
-    config: Mapping[str, Any], project_name: str, repo_root: Path | None
+    config: Mapping[str, Any],
+    project_name: str,
+    repo_root: Path | None,
+    *,
+    dispatch_tier: str | None = None,
 ) -> dict[str, dict[str, Any]]:
     """The ``renders`` keys the build writes into the root render of *repo_root*.
 
     One dotted ``modules.web_terminals.renders.<name>`` key per render
     (:func:`render_projection`), laid over the profile's own ``config:``
-    entries — the profile never spells one; validation refuses it. Empty when
-    *config* does not stand up a web-terminal stack of its own (a tier or app
-    render, whose module is disabled), so a render never projects
-    renders-of-a-render, and empty when there is no repo to enumerate.
+    entries — the profile never spells one; validation refuses it. Written when
+    *config* stands up a web-terminal stack of its own, or when the deployment's
+    dispatch workers run at a tier, whose image is named from this projection
+    whether or not a terminal is deployed beside them. Empty otherwise — a tier
+    or app render disables the module and is handed no dispatch tier, so a
+    render never projects renders-of-a-render — and empty when there is no repo
+    to enumerate.
 
     Args:
         config: A profile's ``config:`` block, in any spelling the profile
             accepts (dotted, nested or mixed).
         project_name: The deployment's ``project_name``.
         repo_root: The deployment repo, or ``None`` when there is none.
+        dispatch_tier: The deployment's ``dispatch.tier``, or ``None`` when it
+            sets none or *config* is a tier's or app's render.
     """
     from osprey.cli.build_profile_emit import effective_web_terminals
 
-    if repo_root is None or not effective_web_terminals(config).get("enabled"):
+    serves_renders = bool(effective_web_terminals(config).get("enabled")) or bool(dispatch_tier)
+    if repo_root is None or not serves_renders:
         return {}
     return {
         f"{RENDERS_KEY}.{name}": entry

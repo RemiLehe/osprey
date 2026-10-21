@@ -386,7 +386,9 @@ def build_lint_view(
     if project_name:
         from osprey.deployment.web_terminals.render_naming import derived_renders
 
-        view.update(derived_renders(config, project_name, profile_root))
+        view.update(
+            derived_renders(config, project_name, profile_root, dispatch_tier=dispatch_tier)
+        )
         view["project_name"] = project_name
     return view
 

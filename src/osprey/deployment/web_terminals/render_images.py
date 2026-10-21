@@ -350,7 +350,9 @@ def render_build_session() -> Iterator[None]:
         _SESSION_BUILT_TAGS.reset(token)
 
 
-def _referenced_renders(config: dict, resolved_users: list[dict]) -> list[dict[str, str]]:
+def _referenced_renders(
+    config: dict, resolved_users: list[dict], *, serves_roster: bool = True
+) -> list[dict[str, str]]:
     """One build unit per render this deployment serves.
 
     Which renders: :func:`~osprey.deployment.web_terminals.roster.served_renders`
@@ -380,6 +382,9 @@ def _referenced_renders(config: dict, resolved_users: list[dict]) -> list[dict[s
         ``services.dispatch_worker.tier``).
     :param resolved_users: :func:`osprey.deployment.web_terminals.roster.resolve_cards`'s
         strict output for this deploy.
+    :param serves_roster: Whether this deploy stands up the web terminals. A
+        deploy without them serves no roster, so the dispatch tier is its one
+        render.
     :return: One ``{"render", "project", "project_path", "build_profile",
         "image"}`` dict per served render, in served order (``build_profile``
         is the file the render is built from — ``tiers/<name>.yml`` or
@@ -387,16 +392,21 @@ def _referenced_renders(config: dict, resolved_users: list[dict]) -> list[dict[s
     :raises ValueError: A roster or dispatch tier that does not resolve.
     """
     by_render: dict[str, dict] = {}
-    for entry in resolved_users:
-        render_name = entry.get("render")
+    for card in resolved_users:
+        render_name = card.get("render")
         if isinstance(render_name, str):
-            by_render.setdefault(render_name, entry)
+            by_render.setdefault(render_name, card)
     # Resolved before the walk, so a dispatch tier this build has no render of
     # is refused rather than skipped as a name the projection does not list.
     dispatch_entry = resolve_dispatch_tier(config, strict=True)
 
+    served_set = served_renders(config, strict=True)
+    if not serves_roster:
+        dispatch_tier = dispatch_tier_name(config)
+        served_set = {name: s for name, s in served_set.items() if name == dispatch_tier}
+
     referenced: list[dict[str, str]] = []
-    for render_name, served in served_renders(config, strict=True).items():
+    for render_name, served in served_set.items():
         if served is None:
             continue
         entry = by_render.get(render_name)
@@ -784,6 +794,8 @@ def verify_renders(
     config: dict,
     resolved_users: list[dict],
     repo_root: Path,
+    *,
+    serves_roster: bool = True,
 ) -> None:
     """Check every referenced tier and app has a usable rendered project, or refuse.
 
@@ -827,11 +839,12 @@ def verify_renders(
     :param repo_root: The deployment repo: the directory holding
         ``profile.yml``, ``tiers/``, ``apps/`` and ``build/``. It IS the profile
         root.
+    :param serves_roster: Forwarded to :func:`_referenced_renders`.
     :raises ValueError: A referenced render that is absent, partial, or whose
         model its provider cannot serve; and, on the absent path, a render whose
         tier or app file is missing or does not anchor at ``repo_root``.
     """
-    for unit in _referenced_renders(config, resolved_users):
+    for unit in _referenced_renders(config, resolved_users, serves_roster=serves_roster):
         render_name = unit["render"]
         project_path = Path(unit["project_path"])
 
@@ -885,7 +898,12 @@ def verify_renders(
 
 
 def build_render_images(
-    config: dict, resolved_users: list[dict], dev_mode: bool, env: dict
+    config: dict,
+    resolved_users: list[dict],
+    dev_mode: bool,
+    env: dict,
+    *,
+    serves_roster: bool = True,
 ) -> None:
     """Build every REFERENCED render's ``<project>:local`` image (local mode only).
 
@@ -933,6 +951,7 @@ def build_render_images(
     :param dev_mode: Whether ``--dev`` was passed (stage a local wheel into
         each render's build context).
     :param env: Environment for the build subprocesses.
+    :param serves_roster: Forwarded to :func:`_referenced_renders`.
     :raises ValueError: Local mode with no ``renders`` projection or no
         ``default_tier`` configured.
     """
@@ -946,7 +965,7 @@ def build_render_images(
     if not renders or not isinstance(default_tier, str) or not default_tier:
         raise ValueError(RENDER_CATALOG_REQUIRED)
 
-    referenced = _referenced_renders(config, resolved_users)
+    referenced = _referenced_renders(config, resolved_users, serves_roster=serves_roster)
     if not referenced:
         return
 

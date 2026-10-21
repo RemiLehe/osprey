@@ -47,7 +47,7 @@ import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 from osprey_connectors.logger import get_logger
 from osprey_connectors.workspace import BUILD_DIR_NAME
@@ -537,7 +537,7 @@ def _version_skew(stamped: Any) -> VersionSkew | None:
     return VersionSkew(stamped=stamped, installed=installed)
 
 
-def predates_vocabulary(stamped: Any) -> bool:
+def predates_vocabulary(stamped: Any) -> TypeGuard[str]:
     """Whether a render stamped *stamped* was made before the tiers/apps vocabulary.
 
     The vocabulary release is the profile-schema floor

@@ -236,6 +236,19 @@ def test_local_build_builds_the_tier_image_with_no_user_on_it(builds) -> None:
     assert builds.tags == ["demo-readwrite:local", "demo-readonly:local"]
 
 
+def test_without_web_terminals_only_the_dispatch_tier_is_built(builds) -> None:
+    """No terminal is deployed, so neither the default tier nor any roster tier
+    is; the workers' tier is."""
+    config = _config(users=[{"name": "alice", "index": 0, "tier": "readwrite"}])
+    config["modules"]["web_terminals"]["enabled"] = False
+
+    assert [u["render"] for u in _referenced_renders(config, [], serves_roster=False)] == [
+        "readonly"
+    ]
+    render_images.build_render_images(config, [], False, {}, serves_roster=False)
+    assert builds.tags == ["demo-readonly:local"]
+
+
 def test_registry_mode_builds_nothing(builds) -> None:
     render_images.build_render_images(_config(image_source="registry"), [], False, {})
     assert builds.tags == []
@@ -334,22 +347,29 @@ def test_up_step_verifies_then_builds_the_whole_reference_set(
     monkeypatch, tmp_path, web_terminals_enabled
 ) -> None:
     config = _config(users=[{"name": "alice", "index": 0, "tier": "readwrite"}])
-    seen: list[tuple[str, list[str]]] = []
+    seen: list[tuple[str, list[str], bool]] = []
     monkeypatch.setattr(
         container_lifecycle,
         "verify_renders",
-        lambda cfg, users, repo_root: seen.append(("verify", [u["name"] for u in users])),
+        lambda cfg, users, repo_root, serves_roster: seen.append(
+            ("verify", [u["name"] for u in users], serves_roster)
+        ),
     )
     monkeypatch.setattr(
         container_lifecycle,
         "build_render_images",
-        lambda cfg, users, dev, env: seen.append(("build", [u["name"] for u in users])),
+        lambda cfg, users, dev, env, serves_roster: seen.append(
+            ("build", [u["name"] for u in users], serves_roster)
+        ),
     )
     container_lifecycle._build_referenced_renders(
         config, tmp_path, False, {}, web_terminals_enabled=web_terminals_enabled
     )
     roster = ["alice"] if web_terminals_enabled else []
-    assert seen == [("verify", roster), ("build", roster)]
+    assert seen == [
+        ("verify", roster, web_terminals_enabled),
+        ("build", roster, web_terminals_enabled),
+    ]
 
 
 def test_up_step_refuses_the_worker_env_override(monkeypatch, tmp_path) -> None:

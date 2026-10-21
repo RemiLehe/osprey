@@ -1184,9 +1184,9 @@ def _roster_layers(config: Mapping[str, Any], dispatch_tier: Any) -> tuple[list[
     ``default_tier`` when they name neither), by ``default_tier`` itself — the
     tier the next person added inherits — by every role ``authorization``
     binds, since single sign-on may hand any of them out, and by
-    ``dispatch.tier``. An app is named by ``shared:``. Empty unless the profile
-    stands up web terminals: a tier or app file is laid over a stack that
-    exists.
+    ``dispatch.tier``. An app is named by ``shared:``. A profile that stands up
+    no web terminals deploys no roster, so it names only ``dispatch.tier``: the
+    dispatch workers run that tier with or without a terminal beside them.
 
     Unreadable roster values name nothing here; the rules that own them report
     them.
@@ -1204,7 +1204,7 @@ def _roster_layers(config: Mapping[str, Any], dispatch_tier: Any) -> tuple[list[
 
     web_terminals = effective_web_terminals(config)
     if not web_terminals.get("enabled"):
-        return [], []
+        web_terminals = {}
     served = served_render_names(web_terminals, dispatch_tier)
     tiers = {name for name, kind in served.items() if kind != RENDER_KIND_APP}
     apps = {name for name, kind in served.items() if kind == RENDER_KIND_APP}

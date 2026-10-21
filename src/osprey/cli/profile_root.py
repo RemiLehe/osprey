@@ -38,11 +38,11 @@ from pathlib import Path
 from osprey_connectors.errors import BuildProfileError
 from osprey_connectors.workspace import (
     APPS_DIRNAME,
+    LAYER_DIR_KINDS,
     LAYER_DIRNAMES,
     PROFILE_FILENAME,
     RETIRED_LAYER_DIRS,
     TIERS_DIRNAME,
-    layer_dir_kind,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -71,7 +71,10 @@ class ProfileKind(StrEnum):
 #: Layer directory name -> the kind its files resolve as. Built from the
 #: layout names in ``osprey_connectors.workspace``; a kind word there that
 #: :class:`ProfileKind` does not know fails here, at import.
-_LAYER_KINDS: dict[str, ProfileKind] = {d: ProfileKind(layer_dir_kind(d)) for d in LAYER_DIRNAMES}
+_LAYER_KINDS: dict[str, ProfileKind] = {
+    **{d: ProfileKind(word) for d, word in LAYER_DIR_KINDS.items()},
+    **{d: ProfileKind(LAYER_DIR_KINDS[live]) for d, live in RETIRED_LAYER_DIRS.items()},
+}
 
 
 def layer_files(root_dir: Path) -> list[tuple[ProfileKind, Path]]:

@@ -353,8 +353,9 @@ def _layer_source(text: str, data: Any) -> str | None:
     """The preset a materialized layer file names as its source, if any."""
     if isinstance(data, dict):
         provenance = data.get("provenance")
-        if isinstance(provenance, dict) and isinstance(provenance.get("preset"), str):
-            return provenance["preset"]
+        preset = provenance.get("preset") if isinstance(provenance, dict) else None
+        if isinstance(preset, str):
+            return preset
     match = _MADE_FROM.search(text)
     return match.group(1) if match else None
 
@@ -405,7 +406,7 @@ def _predecessor(container: Any, key: Any) -> tuple[dict, Any, int] | None:
 
 def _key_column(container: Any, key: Any, default: int) -> int:
     try:
-        return container.lc.key(key)[1]
+        return int(container.lc.key(key)[1])
     except (AttributeError, KeyError, TypeError, IndexError):
         return default
 
@@ -416,7 +417,7 @@ def _item_column(seq: Any, default: int) -> int:
         line_col = seq.lc.item(0)
     except (AttributeError, KeyError, TypeError, IndexError):
         return default
-    return line_col[1] - 2
+    return int(line_col[1]) - 2
 
 
 def _rewrite_roster_keys(document: Any, source: str) -> dict[str, dict[str, Any]]:
@@ -497,7 +498,9 @@ def _roster_container(config: Any) -> tuple[Any, str] | None:
     return None
 
 
-def _move_users_to_shared(config: Any, apps: dict[str, str], preset: _PresetRoster) -> list[str]:
+def _move_users_to_shared(
+    config: Any, apps: dict[str, tuple[str, str]], preset: _PresetRoster
+) -> list[str]:
     """Take every user pinned to a migrated app off the roster; list the app in ``shared:``.
 
     Args:
@@ -516,7 +519,7 @@ def _move_users_to_shared(config: Any, apps: dict[str, str], preset: _PresetRost
     column = _item_column(users, _key_column(container, users_key, 0) + 2)
     removed: list[str] = []
     order: list[str] = []
-    bundled = dict(apps.values())
+    bundled: dict[str, str] = dict(apps.values())
     for index in reversed(range(len(users))):
         entry = users[index]
         tier = entry.get("tier") if isinstance(entry, dict) else None

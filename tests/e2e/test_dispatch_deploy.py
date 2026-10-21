@@ -15,7 +15,7 @@ It inits + builds a control-assistant deployment repo, deploys the stack with
   * denied-tool-demo -> rejected by the worker denylist (no completed run)
 
 The same deploy also stands up the preset's multi-user web tier (local image
-mode): the build renders one render project per the retired layer directory delta into
+mode): the build renders one render project per ``tiers/`` file into
 ``build/<repo>-<render>/``, ``up`` builds one ``:local`` image per render and
 brings up nginx + one web-terminal container per roster user. Four more things
 are asserted on top:
@@ -112,6 +112,8 @@ from osprey.deployment.compose_generator import (
     ensure_control_target_dir,
     resolve_project_name,
 )
+from osprey.deployment.web_terminals.render_naming import render_project
+from osprey.deployment.web_terminals.roster import dispatch_tier_name
 from osprey.port_layout import PORT_BASE_CONFIG_KEY, default_port
 from osprey_connectors.control_context import RECORD_FILENAME, ControlContext, write_record
 from osprey_connectors.posture_store import POSTURE_SANDBOX
@@ -162,10 +164,18 @@ CONTAINER_HEALTH_TIMEOUT_SEC = 180.0
 PROJECT_NAME = "osprey-e2e-dispatch"
 DISPATCHER_CONTAINER = f"{PROJECT_NAME}-event-dispatcher"
 WORKER_CONTAINER = f"{PROJECT_NAME}-dispatch-worker-1"
-# Where the worker's agent-data volume mounts inside the project image: the
-# repo's durable state zone, named by ``agent_data.base_dir`` in the config the
-# compose generator renders the mount from.
-WORKER_AGENT_DATA = f"/app/{PROJECT_NAME}/var/agent_data"
+#: The tier this lane runs the dispatch workers at (``dispatch.tier``). The
+#: preset ships ``readonly``, under which a worker has no write or queue tool
+#: to call; the owner rows prove narrowing, the ceiling and plan enqueue, so
+#: their worker is one that may write. A tiered worker runs that tier's image,
+#: whose project is rooted at ``/app/<project_name>-<tier>``; the build is held
+#: to it before the deploy.
+WORKER_TIER = "readwrite"
+WORKER_PROJECT, _ = render_project(PROJECT_NAME, WORKER_TIER)
+# Where the worker's agent-data volume mounts inside the tier image: the
+# project's durable state zone, named by ``agent_data.base_dir`` in the config
+# the compose generator renders the mount from.
+WORKER_AGENT_DATA = f"/app/{WORKER_PROJECT}/var/agent_data"
 
 # ---------------------------------------------------------------------------
 # Multi-user web tier (T1-T4). Ports are remapped off the preset
@@ -508,7 +518,7 @@ def _assert_roster_renders(repo: Path) -> None:
     """
     rendered = yaml.safe_load((repo / "build" / "config.yml").read_text(encoding="utf-8"))
     roster = {
-        str(entry.get("name")): str(entry.get("render"))
+        str(entry.get("name")): str(entry.get("tier"))
         for entry in (rendered["modules"]["web_terminals"]["users"] or [])
     }
     expected = {READONLY_USER: "readonly", READWRITE_USER: "readwrite"}
@@ -563,7 +573,7 @@ def deployed_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
 
     # Two steps, because the surface has two: `init` writes the repo's source
     # zone from the preset, `build` renders build/ from it — including one
-    # render project per the retired layer directory delta.
+    # render project per ``tiers/`` file.
     init = _run(
         [
             str(osprey_bin),
@@ -582,6 +592,8 @@ def deployed_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
             f"virtual_accelerator.port={VA_CA_PORT}",
             "--set",
             f"virtual_accelerator.pva_port={_orm_stack.VA_PVA_PORT}",
+            "--set",
+            f"dispatch.tier={WORKER_TIER}",
         ],
         cwd=base,
         timeout=300,
@@ -611,6 +623,11 @@ def deployed_stack(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     # which roster user holds which tier, and the read-write render must carry
     # the events panel the owner rows hop through.
     _assert_roster_renders(repo)
+    rendered = yaml.safe_load((repo / "build" / "config.yml").read_text(encoding="utf-8"))
+    assert dispatch_tier_name(rendered) == WORKER_TIER, (
+        f"the build runs the dispatch workers at {dispatch_tier_name(rendered)!r}, not "
+        f"{WORKER_TIER!r}: every worker-side path below is rooted at the tier's project"
+    )
 
     # The repo root's .env is the deployment's whole secret store — the file the
     # worker's env_file (compose template) delivers to the container so
@@ -850,7 +867,7 @@ def _worker_mcp_surface() -> str:
             WORKER_CONTAINER,
             "sh",
             "-c",
-            f"find /app/{PROJECT_NAME} -maxdepth 2 -name .mcp.json -print -exec cat {{}} +",
+            f"find /app/{WORKER_PROJECT} -maxdepth 2 -name .mcp.json -print -exec cat {{}} +",
         ],
         capture_output=True,
         text=True,
@@ -862,7 +879,7 @@ def _worker_mcp_surface() -> str:
     found = proc.stdout.strip()
     if not found:
         return (
-            f"CAUSE = provisioning: no .mcp.json anywhere under /app/{PROJECT_NAME}, so "
+            f"CAUSE = provisioning: no .mcp.json anywhere under /app/{WORKER_PROJECT}, so "
             "mcp__osprey_workspace__artifact_register never existed and the agent's Write "
             "fallback was denied by the allowlist."
         )
@@ -1110,7 +1127,7 @@ def _fetch_in_container(container: str, url: str, timeout: float) -> str:
 
 
 def _layer_dir(repo: Path, render_project: str) -> Path:
-    """The rendered render project directory.
+    """The rendered tier project directory.
 
     The catalog pins each ``project_path`` to ``build/<repo>-<render>``, which
     is where the build renders it: a render project is build output like every
@@ -1187,7 +1204,7 @@ def test_readonly_tier_denies_writes(deployed_stack: Path) -> None:
     readonly_dir = _layer_dir(deployed_stack, READONLY_PROJECT)
     config = yaml.safe_load((readonly_dir / "config.yml").read_text(encoding="utf-8"))
     assert (config.get("claude_code") or {}).get("provider") == "als-apg", (
-        "the deployment's `--set provider=als-apg` did not reach the rendered render project"
+        "the deployment's `--set provider=als-apg` did not reach the rendered tier project"
     )
     assert _write_posture(readonly_dir) == dict.fromkeys(CONTROL_TARGETS, False), (
         f"readonly tier must arm writes for no target: {_write_posture(readonly_dir)}"

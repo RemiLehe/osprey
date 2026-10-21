@@ -204,6 +204,24 @@ def test_derived_renders_is_empty_for_a_render_without_a_terminal_stack(tmp_path
     }
 
 
+def test_derived_renders_projects_for_a_dispatch_tier_without_a_terminal_stack(tmp_path: Path):
+    """The dispatch workers run their tier with no terminal beside them, and the
+    worker's image is named from this projection."""
+    repo = tmp_path / "repo"
+    (repo / "tiers").mkdir(parents=True)
+    (repo / "tiers" / "ops.yml").write_text("name: ops\n")
+    disabled = {"modules.web_terminals.enabled": False}
+
+    assert derived_renders(disabled, "site", repo, dispatch_tier="ops") == {
+        "modules.web_terminals.renders.ops": {
+            "kind": "tier",
+            "project": "site-ops",
+            "project_path": "build/site-ops",
+        }
+    }
+    assert derived_renders(disabled, "site", repo, dispatch_tier=None) == {}
+
+
 def test_lint_view_without_a_profile_root_projects_nothing():
     view = build_lint_view(None, dict(ENABLED), "site")
 

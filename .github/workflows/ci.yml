@@ -4391,7 +4391,7 @@ jobs:
         docker rm -f osprey-e2e-auth-perimeter-nginx || true
         docker compose -p osprey-e2e-auth-perimeter down || true
         docker rmi -f osprey-e2e-auth-perimeter-auth:local || true
-        docker rmi -f authe2e-operator:local || true
+        docker rmi -f osprey-e2e-auth-perimeter-readonly:local || true
 
   terminal-auth-multiuser-e2e:
     name: Terminal Auth Multi-User E2E (auth.method token + none, real render image)
@@ -4424,17 +4424,15 @@ jobs:
     # lane (which is why the module carries the `dockerbuild` marker and is
     # --ignore'd there).
     #
-    # TWO deployments, ONE build. The module proves both sidecar-less postures:
+    # TWO deployments, ONE recipe. The module proves both sidecar-less postures:
     # `auth.method: token` (the DEFAULT, and what an absent `auth:` block
     # renders) where nginx injects nothing and each terminal's own `?token=`
     # exchange is the gate; and `auth.method: none` (OPEN, navigation-only)
     # where nginx injects each user's operator secret and executed code is
-    # refused the deployment's own web ports. Both lanes share one render
-    # project and therefore one
-    # `:local` image, so the second `osprey up` re-runs the build against a
-    # byte-identical context and hits the runtime cache: the added cost over the
-    # single-posture lane this replaces is a second render plus a second deploy,
-    # not a second image build.
+    # refused the deployment's own web ports. A tier's `:local` image is tagged
+    # for the deployment that renders it, so each lane builds its own; the
+    # second build runs the same recipe and takes every layer up to the project
+    # copy from the runtime's cache.
     #
     # Complement, not duplicate, of auth-perimeter-e2e: that lane proves the
     # AUTHENTICATED perimeter (sidecar + nginx auth_request + header injection),
@@ -4511,9 +4509,9 @@ jobs:
         done
         docker rm -f osprey-e2e-open-multiuser-nginx || true
         docker compose -p osprey-e2e-open-multiuser down || true
-        # ONE image for both lanes: the render catalog entry names its own
-        # `project`, so the tag is `<project>:local` with no tier suffix.
-        docker rmi -f authmulti-operator:local || true
+        # Each lane's tier image, tagged `<project_name>-<tier>:local`.
+        docker rmi -f osprey-e2e-token-multiuser-readonly:local || true
+        docker rmi -f osprey-e2e-open-multiuser-readonly:local || true
 
   full-chain-auth-e2e:
     name: Full-Chain Auth E2E (real sidecar + role-resolved tier render + audit ledgers)
@@ -4669,8 +4667,8 @@ jobs:
         docker volume ls -q --filter "name=^osprey-e2e-full-chain-auth_" \
           | xargs -r docker volume rm -f || true
         docker rmi -f osprey-e2e-full-chain-auth-auth:local || true
-        docker rmi -f fullchain-operator:local || true
-        docker rmi -f fullchain-probe:local || true
+        docker rmi -f osprey-e2e-full-chain-auth-operator:local || true
+        docker rmi -f osprey-e2e-full-chain-auth-probe:local || true
         # The project image `osprey up` builds, which the history service runs.
         docker rmi -f osprey-e2e-full-chain-auth:local || true
 

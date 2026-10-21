@@ -727,11 +727,10 @@ def test_divergent_shell_export_never_overwrites_the_pinned_secret(tmp_path: Pat
 def test_renders_are_rendered_by_the_build_from_this_repos_own_deltas(tmp_path: Path) -> None:
     """Renders are rendered by the BUILD, from the repo's own tiers/.
 
-    ``control-assistant`` is the shipped two-render stack. ``osprey init``
-    writes a delta per render into ``<repo>/tiers/`` and rewrites the
-    catalog's ``build_profile`` to point at those files; ``osprey build`` then
-    renders each render project into ``build/`` beside the deployment's own
-    render. That anchoring is the whole feature: a delta merges over the profile
+    ``control-assistant`` ships a multi-tier stack. ``osprey init`` writes a
+    file per tier into ``<repo>/tiers/``; ``osprey build`` then renders each
+    into ``build/`` beside the deployment's own render and projects it into
+    the rendered config as a catalog entry named for the file. That anchoring is the whole feature: a delta merges over the profile
     the deployment was built from, which is what gives every render the host's
     data tree and its convention artifacts.
 
@@ -771,11 +770,10 @@ def test_renders_are_rendered_by_the_build_from_this_repos_own_deltas(tmp_path: 
 
         for render, entry in catalog.items():
             delta = repo / TIERS_DIRNAME / f"{render}.yml"
-            assert entry.get("build_profile") == f"{TIERS_DIRNAME}/{render}.yml", (
-                f"render {render!r} does not point at a delta in this repo: "
-                f"{entry.get('build_profile')!r}"
+            assert delta.is_file(), (
+                f"render {render!r} has no file in this repo's {TIERS_DIRNAME}/: "
+                f"osprey init did not write {delta}"
             )
-            assert delta.is_file(), f"osprey init did not write {delta}"
 
             # The catalog's project_path is repo-relative and lands inside the
             # render, which is what makes a render disposable with the rest of

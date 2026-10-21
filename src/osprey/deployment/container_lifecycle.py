@@ -2419,7 +2419,8 @@ def _build_referenced_renders(
     :param env: Environment for the builds (read for ``OSPREY_WORKER_IMAGE``,
         which a tier refuses).
     :param web_terminals_enabled: Whether this deployment runs the web
-        terminals, whose roster joins the reference set.
+        terminals, whose roster joins the reference set. Without them the
+        dispatch tier is built alone.
     :raises ValueError: A contradicting worker image, or a referenced render
         that is missing or does not resolve.
     """
@@ -2431,8 +2432,10 @@ def _build_referenced_renders(
     if web_terminals_enabled:
         web_terminals = (config.get("modules") or {}).get("web_terminals") or {}
         resolved_users = resolve_cards(web_terminals, config.get("registry") or {}, strict=True)
-    verify_renders(config, resolved_users, repo_root=Path(repo_root))
-    build_render_images(config, resolved_users, dev_mode, env)
+    verify_renders(
+        config, resolved_users, repo_root=Path(repo_root), serves_roster=web_terminals_enabled
+    )
+    build_render_images(config, resolved_users, dev_mode, env, serves_roster=web_terminals_enabled)
 
 
 def _project_image_build_target(config: dict, env: dict) -> str | None:

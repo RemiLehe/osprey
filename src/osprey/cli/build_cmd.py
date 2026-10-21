@@ -1995,7 +1995,7 @@ def _render_project(
         missing_posture_errors,
     )
     from .build_profile_archiver import va_archiver_config_overrides
-    from .build_profile_deploy import deploy_config_overrides
+    from .build_profile_deploy import deploy_config_overrides, profile_dispatch_tier
     from .build_profile_health import health_config_overrides
     from .build_profile_panels import apply_panel_selection, panel_selection_overrides
     from .build_profile_ports import layout_port_fill
@@ -2158,9 +2158,10 @@ def _render_project(
         # health_url_key_errors refuses any other value at validation, so the
         # overwrite never silently replaces a different value. The render
         # projection `modules.web_terminals.renders` is DERIVED from this repo's
-        # tier and app files (validation refuses a profile spelling of it), and
-        # empty for a render that stands up no web-terminal stack of its own — a
-        # tier's or app's render — so no render projects renders-of-a-render.
+        # tier and app files (validation refuses a profile spelling of it). The
+        # deployment projects it when it stands up web terminals or runs its
+        # dispatch workers at a tier; a tier's or app's render stands up neither,
+        # so no render projects renders-of-a-render.
         from osprey.deployment.web_terminals.render_naming import derived_renders
 
         derived_by_block = {
@@ -2168,7 +2169,12 @@ def _render_project(
             "deploy": deploy_config_overrides(build_profile.deploy, build_profile.config),
             "modules.web_terminals": health_config_overrides(build_profile.config),
             "graphdb": graphdb_corpus_fill(build_profile.config),
-            "project_name": derived_renders(build_profile.config, project_name, repo_root),
+            "project_name": derived_renders(
+                build_profile.config,
+                project_name,
+                repo_root,
+                dispatch_tier=profile_dispatch_tier(build_profile) if deployment else None,
+            ),
             "va_archiver": va_archiver_config_overrides(build_profile.va_archiver),
             # Reads the render because the stand-in's probe channel is the sandbox
             # VA's: whatever the template put there is the fallback for a profile

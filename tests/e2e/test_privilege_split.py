@@ -1004,7 +1004,7 @@ def seeded_container(admin_image, preset_repo: Path, rendered_config: dict):
     user = "carol"
     rendered_config = copy.deepcopy(rendered_config)
     web_terminals = rendered_config["modules"]["web_terminals"]
-    tier = next(u for u in web_terminals["users"] if u["name"] == user)["render"]
+    tier = next(u for u in web_terminals["users"] if u["name"] == user)["tier"]
     assert web_terminals["renders"][tier]["project"] == project, (
         "this fixture reuses the admin image for the seeding target; the "
         "roster no longer maps carol onto it"

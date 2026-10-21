@@ -121,7 +121,7 @@ PRESET = "control-assistant"
 USER = "alice"
 RENDER = "operator"
 #: ``osprey build`` renders a layer to ``build/<repo>-<render>``, and
-#: the catalog must name that same project or a start refuses the render.
+#: its image is tagged by that project.
 RENDER_PROJECT = f"{PROJECT_NAME}-{RENDER}"
 RENDER_IMAGE_TAG = f"{RENDER_PROJECT}:local"
 #: Service images ``osprey up`` builds per project, exact tags for the teardown.
@@ -326,10 +326,10 @@ def _profile_edits() -> dict[str, Any]:
     container they add is a minute of build. The preset's ``services:`` block
     holds the record archive, which runs the same project image as the
     dispatcher, so it goes with the dispatch stack: ``services: {}`` is the
-    spelling because a single service cannot be nulled. The roster and the render
-    catalog are rewritten in :func:`_shape_repo` instead of stated here: they
-    are derived from the preset's own catalog, which only exists once the
-    repo is materialized.
+    spelling because a single service cannot be nulled. The roster and its tier
+    are rewritten in :func:`_shape_repo` instead of stated here: this lane's
+    tier is its own file in ``tiers/``, and ``osprey init`` materializes only
+    the tiers OSPREY ships, so the roster can name it only once the repo exists.
     """
     return {
         "config": {
@@ -344,7 +344,6 @@ def _profile_edits() -> dict[str, Any]:
             "modules.web_terminals": {
                 "enabled": True,
                 "image_source": "local",
-                "default_tier": RENDER,
                 "auth": {"method": "token"},
             },
         },
@@ -358,13 +357,13 @@ def _profile_edits() -> dict[str, Any]:
 
 
 def _shape_repo(repo: Path) -> None:
-    """One roster user on one layer, after ``osprey init`` materialized the preset's.
+    """One roster user on this lane's own tier, after ``osprey init`` wrote the preset's.
 
-    ``osprey init`` renders one delta per preset render and unions the roster
-    override onto the preset's own; the profile is rewritten here to the shape
-    this lane deploys. The delta keeps the write gate armed the way the preset's
-    read-write render does, and declares no ``extends`` — a file in
-    tiers/ inherits from the profile beside it.
+    ``osprey init`` writes a file per tier the preset's roster names; the
+    profile is rewritten here to the shape this lane deploys, and those files
+    give way to the one tier it runs. That tier keeps the write gate armed the
+    way the preset's read-write tier does, and declares no ``extends`` — a
+    file in tiers/ inherits from the profile beside it.
     """
     profile_path = repo / "profile.yml"
     profile = yaml.safe_load(profile_path.read_text(encoding="utf-8"))

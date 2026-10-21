@@ -9,7 +9,7 @@ import logging
 from collections.abc import Mapping
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Final
 
 from osprey_connectors.dotenv import ENV_CHAIN_FILENAMES
 
@@ -29,11 +29,11 @@ PROFILE_FILENAME = "profile.yml"
 
 #: Directory beside ``profile.yml`` (or in the bundled presets) holding tiers:
 #: access levels of the deployment's own agent.
-TIERS_DIRNAME = "tiers"
+TIERS_DIRNAME: Final = "tiers"
 
 #: Directory beside ``profile.yml`` (or in the bundled presets) holding apps:
 #: separate agents built from the same deployment.
-APPS_DIRNAME = "apps"
+APPS_DIRNAME: Final = "apps"
 
 #: Each live layer directory -> the kind word its files are read as. The
 #: listing order is the order every layer listing follows. Spelled here, below

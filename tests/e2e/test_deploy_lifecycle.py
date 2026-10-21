@@ -911,8 +911,8 @@ def test_deploy_lifecycle_two_project_isolation(tmp_path: Path) -> None:
                 "modules.web_terminals.image_source": "local",
                 "modules.web_terminals.default_tier": "mainp",
                 "modules.web_terminals.renders": {
-                    "mainp": {"project": A_RENDER_PROJECT},
-                    "borrowed": {"project": COLLISION_RENDER_PROJECT},
+                    "mainp": tier_render("mainp", A_RENDER_PROJECT),
+                    "borrowed": tier_render("borrowed", COLLISION_RENDER_PROJECT),
                 },
             },
         )
@@ -1451,7 +1451,9 @@ def test_deploy_lifecycle_heterogeneous_registry_mode_up(repo: Path, stub_image:
         {
             "modules.web_terminals.image_source": "registry",
             "modules.web_terminals.default_tier": "assistant",
-            "modules.web_terminals.renders": {"assistant": {"project": f"{PROJECT}-assistant"}},
+            "modules.web_terminals.renders": {
+                "assistant": tier_render("assistant", f"{PROJECT}-assistant")
+            },
         },
     )
 

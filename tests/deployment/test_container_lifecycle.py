@@ -23,7 +23,7 @@ from osprey.deployment.errors import (
     DeploymentPreconditionError,
     UnmetPreconditionsError,
 )
-from osprey.deployment.web_terminals import postup_hooks, provision
+from osprey.deployment.web_terminals import postup_hooks, provision, render_images
 
 
 @pytest.fixture(autouse=True)
@@ -763,6 +763,7 @@ def _mode_wiring_collab(monkeypatch, tmp_path):
     monkeypatch.setattr(container_lifecycle, "verify_runtime_is_running", lambda config: (True, ""))
     monkeypatch.setattr(provision, "get_runtime_command", lambda config: ["docker", "compose"])
     monkeypatch.setattr(postup_hooks, "get_runtime_command", lambda config: ["docker", "compose"])
+    monkeypatch.setattr(render_images, "get_runtime_command", lambda config: ["docker", "compose"])
     monkeypatch.setattr(postup_hooks, "_host_port_answers", lambda url, attempts, delay: True)
     monkeypatch.setattr(
         container_lifecycle, "get_runtime_command", lambda config: ["docker", "compose"]
@@ -791,8 +792,6 @@ def _mode_wiring_collab(monkeypatch, tmp_path):
 
 
 def test_local_mode_never_emits_a_pull_argv(monkeypatch, tmp_path, _mode_wiring_collab):
-    from osprey.deployment.web_terminals import render_images
-
     (tmp_path / ".env").write_text("FOO=bar\n", encoding="utf-8")
     config = _web_terminals_config("local")
     monkeypatch.setattr(container_lifecycle, "prepare_compose_files", lambda *a, **k: (config, []))
