@@ -1135,7 +1135,7 @@ html[data-ui-mode="simple"] .session-selector {
 .panel-rail-icon[data-icon="ariel"]::before { content: "\25ce"; }     /* ◎ ariel */
 .panel-rail-icon[data-icon="channel-finder"]::before { content: "\2315"; } /* ⌕ channels */
 .panel-rail-icon[data-icon="lattice"]::before { content: "\2b21"; }   /* ⬡ lattice */
-.panel-rail-icon[data-icon="okf"]::before { content: "\1f56e"; }      /* 🕮 knowledge */
+.panel-rail-icon[data-icon="okf"]::before { content: "\b6"; }         /* ¶ knowledge */
 .panel-rail-icon[data-icon="jupyter"]::before { content: "\25a6"; }  /* ▦ notebook cells */
 .panel-rail-icon[data-icon="system-health"]::before { content: "\223f"; } /* ∿ health trace */
 
