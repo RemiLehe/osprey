@@ -771,7 +771,7 @@ class ARIELRepository:
         row = await result.fetchone()
         if row is None:
             return None
-        return row["attachments"] if isinstance(row, Mapping) else row[0]
+        return row[0]
 
     @staticmethod
     async def _delete_replaced_stand_ins(
