@@ -1279,7 +1279,7 @@ class TestTieredPresetConfigChown:
     `TestSetupCapabilityConditional` pins both sides of the template branch
     against a synthetic context; this pins that the real preset family lands one
     tier on each side. It is the end of the chain the tiered presets exist for:
-    the base preset denies `setup_patch`, `control-assistant-admin` lifts that
+    the base preset denies `setup_patch`, the `admin` tier lifts that
     deny with `remove_deny`, `_profile_setup_patch_capable` composes the two into
     the render context, and the difference comes out here as which image hands
     `build/config.yml` to the agent's user.

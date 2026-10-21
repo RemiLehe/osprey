@@ -88,11 +88,12 @@ reasoning over results delegated to the OSPREY agent layer.
       .. tab-item:: 1. Configure
 
          The easiest way to get started is to create a new project from the
-         ``ariel-standalone`` template, which includes ARIEL pre-configured:
+         ``control-assistant`` template, which includes ARIEL pre-configured
+         and ships the logbook app on a shared card:
 
          .. code-block:: bash
 
-            osprey init my-project --preset ariel-standalone
+            osprey init my-project --preset control-assistant
             cd my-project
 
          Run ``osprey build`` in it and you get a ready-to-use ``config.yml``

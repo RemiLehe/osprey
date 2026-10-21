@@ -228,7 +228,7 @@ def exemplar_deltas() -> dict[str, Any]:
     deltas are in play.
     """
     resolved, _preset_dir = resolve_build_profile(None, "control-assistant", (), ())
-    texts = _layer_profile_texts(resolved, "Exemplar", "", "control-assistant")
+    texts = _layer_profile_texts(resolved, "Exemplar", "")
     return _parsed_layer_deltas(texts)
 
 
@@ -617,7 +617,7 @@ class TestRoleBoundPrivilegeStillTripsTheGuard:
 
         # Act / Assert
         with pytest.raises(click.UsageError) as excinfo:
-            _layer_profile_texts(profile, "Test", "", "control-assistant")
+            _layer_profile_texts(profile, "Test", "")
         message = str(excinfo.value)
         assert "'carol'" in message
         assert "'admin'" in message

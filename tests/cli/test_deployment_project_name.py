@@ -25,7 +25,6 @@ from click.testing import CliRunner
 
 from osprey.cli.build_cmd import build
 from osprey.cli.build_profile_deploy import build_lint_view
-from osprey.cli.build_profile_emit import render_catalog_layer
 from osprey.cli.build_profile_model import (
     BuildProfile,
     project_name_errors,
@@ -107,10 +106,6 @@ class TestTheProfileField:
 
 class TestTheRenderCatalog:
     """The catalog stores each render's source; the build writes where it lands."""
-
-    def test_the_emitted_layer_carries_no_catalog(self):
-        """A render's source is its file, so an emitted profile names no render."""
-        assert render_catalog_layer(["readonly", "admin"]) == {"config": {}}
 
     def test_one_spelling_names_the_render_and_its_directory(self):
         assert render_project("als-exemplar", "readonly") == (

@@ -164,7 +164,7 @@ def test_exemplar_layer_texts_parse_to_deltas_keyed_by_render_name() -> None:
     from osprey.cli.profile_cmd import _layer_profile_texts, _parsed_layer_deltas
 
     resolved, _dir = resolve_build_profile(None, "control-assistant")
-    texts = _layer_profile_texts(resolved, "Als Exemplar", "", "control-assistant")
+    texts = _layer_profile_texts(resolved, "Als Exemplar", "")
     expected = exemplar_source_files(with_ci=False)
 
     assert sorted(texts) == sorted(EXEMPLAR_LAYER_FILES)

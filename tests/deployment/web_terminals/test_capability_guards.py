@@ -471,7 +471,7 @@ def _render_texts(config: dict[str, Any]):
 
     resolved, _dir = resolve_build_profile(None, "control-assistant")
     resolved.config = config
-    return _layer_profile_texts(resolved, "Test", "", "control-assistant")
+    return _layer_profile_texts(resolved, "Test", "")
 
 
 class TestRenderProfileTextsGuard:

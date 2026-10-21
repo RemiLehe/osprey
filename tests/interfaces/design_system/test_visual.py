@@ -166,10 +166,10 @@ def _create_dispatch_dashboard_app() -> FastAPI:
 # serving the genuine render output — so the baseline exercises the real
 # deploy render path, not a hand-built HTML fixture. Two users on distinct
 # tiers (alice->operator, bob->physicist) so both tier sublabels appear, plus
-# the two shared apps the control-assistant preset ships (logbook research and
-# facility knowledge), titled by their app files' ``name:`` — so the baseline
-# also covers the labelled users section and the apps tray (accent-edged
-# panel, no badges on app cards).
+# the three shared apps the control-assistant preset ships (logbook research,
+# facility knowledge and channel finder), titled by their app files' ``name:``
+# — so the baseline also covers the labelled users section and the apps tray
+# (accent-edged panel, no badges on app cards).
 # ---------------------------------------------------------------------------
 
 _MULTI_USER_LANDING_CONFIG = {
@@ -197,13 +197,14 @@ _MULTI_USER_LANDING_CONFIG = {
                     ("physicist", "tier"),
                     ("logbook", "app"),
                     ("knowledge", "app"),
+                    ("channel-finder", "app"),
                 )
             },
             "users": [
                 {"name": "alice", "index": 0, "tier": "operator"},
                 {"name": "bob", "index": 1, "tier": "physicist"},
             ],
-            "shared": ["logbook", "knowledge"],
+            "shared": ["logbook", "knowledge", "channel-finder"],
         }
     },
 }
@@ -212,6 +213,7 @@ _MULTI_USER_LANDING_CONFIG = {
 _MULTI_USER_LANDING_APP_TITLES = {
     "logbook": "Logbook Research",
     "knowledge": "Facility Knowledge",
+    "channel-finder": "Channel Finder",
 }
 
 
@@ -608,8 +610,8 @@ def test_visual_multi_user_landing(tmp_path, chromium_browser, theme, pytestconf
             page.goto(base_url, wait_until="domcontentloaded", timeout=15_000)
             # Both render-badged user cards must be present before the shot, so
             # the baseline is guaranteed to show the operator/physicist sublabels
-            # (the standalone cards' are suppressed: roster name == render name), and the
-            # standalone-deployments tray must be on screen so every baseline
+            # (the app cards' are suppressed: roster name == render name), and the
+            # apps tray must be on screen so every baseline
             # shows the grouped layout, not just the flat roster.
             expect(page.locator(".landing-card-sublabel")).to_have_count(2, timeout=10_000)
             expect(page.locator(".landing-tray")).to_have_count(1, timeout=10_000)

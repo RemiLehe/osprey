@@ -71,7 +71,7 @@ stages and a stage runs only when every earlier one is clean:
      - Spans, places, positions, wiring and engines, read off the decks.
 
 The second half writes. A build renders more than one tree (the deployment's
-own, one per persona, one per container image) and each render receives the
+own, one per tier and app, one per container image) and each render receives the
 same facility file and the views its own configuration asks for. A view a
 render does not carry is named on stderr with the configuration key that left
 it out; a channel-finder index the profile did not select is neither written

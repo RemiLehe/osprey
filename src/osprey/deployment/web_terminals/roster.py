@@ -2037,6 +2037,42 @@ def roster_entries(
     return entries
 
 
+def app_card_refusal(name: str) -> str:
+    """The one message every per-person roster verb refuses a shared app card with.
+
+    Args:
+        name: The app name the operator gave.
+
+    Returns:
+        The refusal, naming where the app card is actually removed.
+    """
+    return (
+        f"{name} is a shared app card; remove it from modules.web_terminals.shared "
+        "in profile.yml and rebuild"
+    )
+
+
+def refuse_app_card(web_terminals: Any, name: str) -> None:
+    """Refuse *name* when it is a shared app card rather than a person.
+
+    A shared app card has no workspace of its own to decommission and no
+    password of its own to rotate; it leaves the deployment by being dropped
+    from ``shared:``. Resolved through
+    :func:`roster_entries`, the one reader that knows both people and apps, so a person and an app are never
+    confused. Called before any side effect, so a refusal touches nothing.
+
+    Args:
+        web_terminals: The ``modules.web_terminals`` subtree.
+        name: The name the operator gave.
+
+    Raises:
+        ValueError: If *name* is a shared app card.
+    """
+    entries = roster_entries(web_terminals, strict=False)
+    if any(is_app_entry(entry) and entry["name"] == name for entry in entries):
+        raise ValueError(app_card_refusal(name))
+
+
 def app_titles_in(apps_dir: Any) -> dict[str, str]:
     """Each app file's title, read off the top-level ``name:`` of ``apps_dir/*.yml``.
 
@@ -2651,7 +2687,13 @@ CONTROL_IDENTITY_COLLISION_CODE = "web_terminals.control_identity_collision"
 
 
 def _roster_entry_name(user: Any) -> str | None:
-    """A raw roster entry's name: a bare string is its own, a dict its ``name``."""
+    """A raw roster entry's name, uniformly for either roster form.
+
+    A bare string is its own name. An object-form entry contributes its
+    ``name`` field, but only when it is a string; a malformed dict without a
+    str name yields ``None``, and the readers that use this skip it (name
+    well-formedness is lint's own check, not theirs).
+    """
     if isinstance(user, str):
         return user
     if isinstance(user, dict):
@@ -3078,8 +3120,8 @@ def resolve_cards(
     **A shared app** resolves to its own render, ``build/<project>-<app>``,
     named by :func:`~osprey.deployment.web_terminals.render_naming.render_project`
     from *project_name*. Without *project_name*, the render's ``project`` is
-    read from the build's catalog entry for the app (``renders.<app>`` or
-    ``renders.<app>``). The app card keeps the derived entry's ``kind``,
+    read from the build's catalog entry for the app (``renders.<app>``).
+    The app card keeps the derived entry's ``kind``,
     ``app``, ``display_name`` (the app's title, else its name) and
     ``access: any``; its ``render`` is the app's name, the render it runs. It
     declares no services of its own: the app render dials the host's, like

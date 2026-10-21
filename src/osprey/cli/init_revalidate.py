@@ -73,9 +73,8 @@ from .build_profile_document import (
     _WEB_TERMINALS,
     _WT_LABEL,
     RETIRED_CATALOG_KEY,
-    RETIRED_DEFAULT_TIER_KEY,
-    RETIRED_TIER_KEY,
-    _refuse_mixed,
+    _catalog_knobs,
+    _refuse_mixed_roster,
     _RosterSpellings,
     _scan_roster,
 )
@@ -394,16 +393,6 @@ def _rename_key(container: Any, key: str, new_leaf: str) -> None:
         container.ca.items[renamed] = comment
 
 
-def _catalog_knobs(path: tuple[str, ...], value: Any) -> Iterator[tuple[str, str, Any]]:
-    """``(name, knob, value)`` for every field one catalog key carried, any spelling."""
-    if len(path) >= 2:
-        yield path[0], path[1], value
-    elif isinstance(value, dict):
-        for key, inner in value.items():
-            if isinstance(key, str):
-                yield from _catalog_knobs(path + tuple(key.split(".")), inner)
-
-
 def _predecessor(container: Any, key: Any) -> tuple[dict, Any, int] | None:
     keys = (
         list(range(len(container)))
@@ -444,18 +433,7 @@ def _rewrite_roster_keys(document: Any, source: str) -> dict[str, dict[str, Any]
         return {}
     found = _RosterSpellings()
     _scan_roster(config, (), found)
-    for old, new, mixed in (
-        (RETIRED_DEFAULT_TIER_KEY, "default_tier", found.default_old and found.default_new),
-        (f"users[].{RETIRED_TIER_KEY}", "users[].tier", found.users_old and found.users_new),
-        (
-            f"authorization.roles.<role>.{RETIRED_TIER_KEY}",
-            "authorization.roles.<role>.tier",
-            found.roles_old and found.roles_new,
-        ),
-        (RETIRED_CATALOG_KEY, "renders", found.catalog and found.renders),
-    ):
-        if mixed:
-            raise _refuse_mixed(source, f"{_WT_LABEL}.{old}", f"{_WT_LABEL}.{new}")
+    _refuse_mixed_roster(found, source)
 
     for container, key in found.default_old:
         _rename_key(container, key, "default_tier")
@@ -1258,29 +1236,11 @@ def _reference_document(preset: str, *, project_name: str, profile_name: str) ->
     ``project_name`` is the profile's own ``project_name:``, so the reference
     states the same value and that key never reads as one to copy in.
     """
-    from collections.abc import Mapping
-
     from ruamel.yaml import YAML
 
-    from .build_profile_emit import (
-        emit_standalone_profile_yaml,
-        render_catalog,
-        render_catalog_layer,
-        triggers_layer,
-    )
-    from .build_profile_merge import _load_preset_raw, _resolve_extends
+    from .build_profile_emit import materialized_profile_text
 
-    raw, anchor = _load_preset_raw(preset)
-    resolved = _resolve_extends(dict(raw), anchor)
-    config = resolved.get("config")
-    renders = render_catalog(config if isinstance(config, Mapping) else {})
-    layers: tuple[dict[str, Any], ...] = (
-        *((render_catalog_layer(renders),) if renders else ()),
-        *((triggers_layer(),) if hasattr(resolved.get("dispatch"), "items") else ()),
-    )
-    text = emit_standalone_profile_yaml(
-        preset, (), profile_name, project_name=project_name, extra_layers=layers
-    )
+    text = materialized_profile_text(preset, project_name=project_name, profile_name=profile_name)
     document: CommentedMap = YAML().load(text)
     return document
 

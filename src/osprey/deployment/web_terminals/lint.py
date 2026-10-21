@@ -72,6 +72,7 @@ from osprey.deployment.web_terminals.roster import (
     SUPPORTED_MCP_TOPOLOGY,
     USERNAME_CHARSET_RE,
     _is_shared_entry,
+    _roster_entry_name,
     as_dict,
     auth_is_enforced,
     authored_people,
@@ -480,30 +481,12 @@ def _check_duplicate_users(users: list[Any]) -> list[Finding]:
     ]
 
 
-def _user_name(user: Any) -> str | None:
-    """Return a user entry's name, uniformly for either roster form.
-
-    A bare string is its own name. An object-form entry contributes its
-    ``name`` field, but only when it's actually a string — a malformed dict
-    without a str name is simply skipped by the checks that use this (name
-    well-formedness isn't their concern; only well-formed names are held to the
-    charset).
-    """
-    if isinstance(user, str):
-        return user
-    if isinstance(user, dict):
-        name = user.get("name")
-        if isinstance(name, str):
-            return name
-    return None
-
-
 def _check_username_charset(users: list[Any]) -> list[Finding]:
     """A user name becomes an nginx `location` key and a URL path segment
     (``/u/<user>/...``); it must match ``^[a-z0-9][a-z0-9_-]*$``."""
     findings: list[Finding] = []
     for user in users:
-        name = _user_name(user)
+        name = _roster_entry_name(user)
         if name is not None and not USERNAME_CHARSET_RE.fullmatch(name):
             findings.append(
                 Finding(
@@ -827,20 +810,6 @@ def _people_slots(users: list[Any]) -> list[tuple[Any, int]]:
     return slots
 
 
-def _roster_indices(users: list[Any]) -> list[int]:
-    """The per-user port index each person allocates on, in roster order.
-
-    See :func:`_people_slots`; the shared-app slots are :func:`_app_slots`.
-    """
-    return [index for _, index in _people_slots(users)]
-
-
-def _shared_items(web_terminals: dict[str, Any]) -> list[Any]:
-    """``modules.web_terminals.shared`` as authored; empty unless it is a list."""
-    shared = web_terminals.get("shared")
-    return list(shared) if isinstance(shared, list) else []
-
-
 def _app_slots(web_terminals: dict[str, Any]) -> list[tuple[str, int]]:
     """Each derived shared-app card's name and port index, in ``shared:`` order.
 
@@ -868,7 +837,7 @@ def _check_port_families_allocatable(
     :data:`osprey.port_layout.INDEX_MAX` would take a port belonging to the
     next family. The highest index in the roster — a person's or a derived
     shared-app slot's — is the one that decides it."""
-    indices = _roster_indices(users) + [index for _, index in _app_slots(web_terminals)]
+    indices = [index for _, index in (*_people_slots(users), *_app_slots(web_terminals))]
     base_ports = base_ports_from_config(web_terminals, base=resolve_port_base(root))
     if not indices:
         return []
@@ -2204,22 +2173,10 @@ def _config_leaves(*layers: Any) -> dict[str, Any]:
     Layers fold base first, so a later layer's leaf replaces an earlier one's —
     the merge order the build itself applies.
     """
-    leaves: dict[str, Any] = {}
+    spelled: list[tuple[str, Any]] = []
     for layer in layers:
-        _collect_leaves(layer, (), leaves)
-    return leaves
-
-
-def _collect_leaves(node: Any, prefix: tuple[str, ...], into: dict[str, Any]) -> None:
-    """Walk one config layer into ``into``; see :func:`_config_leaves`."""
-    if not isinstance(node, Mapping):
-        return
-    for key, value in node.items():
-        path = prefix + tuple(str(key).split("."))
-        if isinstance(value, Mapping) and value:
-            _collect_leaves(value, path, into)
-        else:
-            into[".".join(path)] = value
+        _collect_every_leaf(layer, (), spelled)
+    return dict(spelled)
 
 
 def _collect_every_leaf(node: Any, prefix: tuple[str, ...], into: list[tuple[str, Any]]) -> None:
@@ -4049,7 +4006,7 @@ def _check_auth_credential_collisions(
     context = _auth_context(web_terminals)
     if context is None or context["auth_method"] != "password":
         return []
-    names = [name for name in (_user_name(user) for user in users) if name is not None]
+    names = [name for name in (_roster_entry_name(user) for user in users) if name is not None]
     return [
         Finding(
             severity="error",
@@ -4096,7 +4053,7 @@ def _check_auth_stored_hashes(
     except (OSError, UnicodeDecodeError):
         return []
     findings: list[Finding] = []
-    for name in (_user_name(user) for user in users):
+    for name in (_roster_entry_name(user) for user in users):
         if name is None:
             continue
         suffix = env_var_suffix(name)
@@ -4168,7 +4125,7 @@ def _check_shared_card_duplicate_subject(
     for user in users:
         if not isinstance(user, dict):
             continue
-        name = _user_name(user)
+        name = _roster_entry_name(user)
         subject = user.get("oidc_subject")
         if name is None or not isinstance(subject, str) or not subject.strip():
             continue
@@ -4287,7 +4244,7 @@ def _access_members(user: Any) -> tuple[str, list[str]] | None:
         The entry's name and its authored members, or ``None`` when the entry is
         one of the silences above.
     """
-    name = _user_name(user)
+    name = _roster_entry_name(user)
     if not isinstance(user, dict) or name is None:
         return None
     authored = user.get("access")
@@ -4896,7 +4853,7 @@ def _check_user_role(web_terminals: dict[str, Any], users: list[Any]) -> list[Fi
         if not isinstance(user, dict) or "role" not in user:
             continue
         role = user.get("role")
-        name = _user_name(user)
+        name = _roster_entry_name(user)
         render = user.get("tier")
         if isinstance(role, str) and role and isinstance(render, str) and render:
             findings.append(
@@ -4967,7 +4924,7 @@ def _check_reserved_audit_identities(users: list[Any]) -> list[Finding]:
     """
     findings: list[Finding] = []
     for user in users:
-        name = _user_name(user)
+        name = _roster_entry_name(user)
         if name is None or not _RESERVED_AUDIT_IDENTITY_RE.fullmatch(name):
             continue
         findings.append(

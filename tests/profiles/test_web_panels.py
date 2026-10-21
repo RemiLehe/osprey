@@ -39,7 +39,7 @@ def test_the_other_presets_leave_the_lattice_tab_out(preset: str) -> None:
 
 def test_the_emitted_knowledge_and_logbook_apps_leave_the_lattice_tab_out() -> None:
     resolved, _preset_dir = resolve_build_profile(None, "control-assistant", (), ())
-    texts = _layer_profile_texts(resolved, "Exemplar", "", "control-assistant")
+    texts = _layer_profile_texts(resolved, "Exemplar", "")
     deltas = _parsed_layer_deltas(texts)
 
     for app in ("knowledge", "logbook"):

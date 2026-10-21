@@ -19,7 +19,7 @@ from click.testing import CliRunner
 
 from osprey.cli.build_cmd import build
 from osprey.cli.build_profile_deploy import build_lint_view
-from osprey.cli.build_profile_emit import emits_layer_profiles, render_catalog
+from osprey.cli.build_profile_emit import effective_web_terminals, emits_layer_profiles
 from osprey.cli.build_profile_model import render_key_errors
 from osprey.deployment.web_terminals.render_images import _referenced_renders
 from osprey.deployment.web_terminals.render_naming import (
@@ -148,8 +148,7 @@ def test_rendered_projection_feeds_the_deploy_readers(built_repo):
     repo, _judged = built_repo
     config = yaml.safe_load((repo / "build" / "config.yml").read_text(encoding="utf-8"))
 
-    catalog = render_catalog(config)
-    assert set(catalog) == {*TIERS, *APPS}
+    assert set(effective_web_terminals(config)["renders"]) == {*TIERS, *APPS}
     assert emits_layer_profiles(config)
 
     # The secret/telemetry walk: every tier a person runs, plus every shared app.

@@ -14,7 +14,10 @@ ways: every preset OSPREY ships is checked here against its RESOLVED hook list
 (what a facility actually gets, after ``extends`` and ``exclude``), and a
 facility profile that breaks the pairing gets a build-time warning naming the
 line to add. The warning does not refuse the build; the selection lists are the
-author's to compose.
+author's to compose. A bundled tier or app is checked against the render it
+makes inside the root preset that scaffolds it: a tier is merged over that
+root, and an app is composed from it, gaining ``writes-check`` whatever its own
+file selects.
 """
 
 from __future__ import annotations
@@ -26,7 +29,13 @@ import pytest
 import yaml
 
 from osprey.cli.build_profile import _load_preset_raw, _resolve_extends, list_presets
-from osprey.cli.build_profile_merge import _warn_missing_target_state, resolve_profile_document
+from osprey.cli.build_profile_merge import (
+    _warn_missing_target_state,
+    render_document,
+    resolve_profile_document,
+)
+from osprey.cli.build_profile_presets import list_apps, list_tiers
+from osprey.cli.profile_root import ProfileKind
 
 #: The helper the gates import, spelled as a profile selects it.
 TARGET_STATE = "target-state"
@@ -34,14 +43,28 @@ TARGET_STATE = "target-state"
 #: The hooks that read write posture, spelled as a profile selects them.
 WRITE_GATES = ("approval", "writes-check")
 
-#: preset name -> the write gates its RESOLVED hook list carries, sorted.
+#: The root preset whose ``osprey init`` scaffolds the bundled tiers and apps.
+LAYER_HOST = "control-assistant"
+
+#: Layer directory -> the kind its files render as.
+LAYER_KINDS = {"tiers": ProfileKind.TIER, "apps": ProfileKind.APP}
+
+#: preset, tier or app name -> the write gates its RESOLVED hook list carries,
+#: sorted.
 #:
 #: Resolved rather than raw, deliberately: what matters is what a facility ends
-#: up running. A preset that ``extends`` another inherits its hook list, so its
-#: raw file can name neither gate while its resolved list names both.
+#: up running. A preset that ``extends`` another inherits its hook list, and a
+#: tier inherits its root's, so a raw file can name neither gate while its
+#: resolved list names both.
 PINNED_PRESET_WRITE_GATES: dict[str, tuple[str, ...]] = {
     "control-assistant": ("approval", "writes-check"),
     "hello-world": ("approval", "writes-check"),
+    "tiers/admin": ("approval", "writes-check"),
+    "tiers/readonly": ("approval", "writes-check"),
+    "tiers/readwrite": ("approval", "writes-check"),
+    "apps/channel-finder": ("approval", "writes-check"),
+    "apps/knowledge": ("approval", "writes-check"),
+    "apps/logbook": ("approval", "writes-check"),
 }
 
 #: The golden a deployment is scaffolded against — a facility profile in every
@@ -55,10 +78,30 @@ EXEMPLAR_PROFILE = (
 )
 
 
+def _bundled_names() -> list[str]:
+    """Every bundled root preset, then every tier and app as ``<kind>/<stem>``."""
+    return (
+        list_presets()
+        + [f"tiers/{name}" for name in list_tiers()]
+        + [f"apps/{name}" for name in list_apps()]
+    )
+
+
 def _resolved_hooks(preset: str) -> list[str]:
-    """The hook selections a facility gets from ``preset``, extends applied."""
+    """The hook selections a facility gets from ``preset``.
+
+    A root preset with ``extends`` applied; a tier or app as the render it
+    makes inside :data:`LAYER_HOST`.
+    """
     raw, path = _load_preset_raw(preset)
-    hooks = _resolve_extends(raw, path).get("hooks") or []
+    directory, _, _stem = preset.partition("/")
+    if directory in LAYER_KINDS:
+        host_raw, host_path = _load_preset_raw(LAYER_HOST)
+        host = _resolve_extends(host_raw, host_path)
+        resolved = render_document(LAYER_KINDS[directory], host, raw, f"{preset}.yml")
+    else:
+        resolved = _resolve_extends(raw, path)
+    hooks = resolved.get("hooks") or []
     return [entry for entry in hooks if isinstance(entry, str)]
 
 
@@ -75,19 +118,19 @@ def _write_profile(directory: Path, hooks: list[str]) -> tuple[dict, Path]:
 
 
 def test_bundled_preset_set_is_pinned():
-    """A new preset must be classified here before it ships.
+    """A new preset, tier or app must be classified here before it ships.
 
-    Without this the comparison below would silently skip an unpinned preset,
-    and the pin would degrade as presets are added.
+    Without this the comparison below would silently skip an unpinned one, and
+    the pin would degrade as presets, tiers and apps are added.
     """
-    assert list_presets() == sorted(PINNED_PRESET_WRITE_GATES)
+    assert sorted(_bundled_names()) == sorted(PINNED_PRESET_WRITE_GATES)
 
 
 def test_every_bundled_preset_selects_the_write_gates_it_is_pinned_to():
-    """Which presets gate writes is a decision, so it is written down."""
+    """Which presets, tiers and apps gate writes is a decision, so it is written down."""
     actual = {
         name: tuple(sorted(gate for gate in WRITE_GATES if gate in _resolved_hooks(name)))
-        for name in list_presets()
+        for name in _bundled_names()
     }
     assert actual == PINNED_PRESET_WRITE_GATES
 
@@ -96,7 +139,7 @@ def test_every_bundled_preset_that_gates_writes_also_selects_target_state():
     """The pairing itself, over what a facility actually receives."""
     offenders = sorted(
         name
-        for name in list_presets()
+        for name in _bundled_names()
         if any(gate in _resolved_hooks(name) for gate in WRITE_GATES)
         and TARGET_STATE not in _resolved_hooks(name)
     )

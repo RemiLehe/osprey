@@ -173,7 +173,7 @@ def card(as_json: bool, repo: Path | None) -> None:
     ):
         repo_root = find_repo_root(repo)
         resolved, _profile_dir = resolve_build_profile(repo_root / PROFILE_FILENAME, None)
-        deltas = read_layer_deltas(repo_root, resolved.config)
+        deltas = read_layer_deltas(repo_root)
 
         # One derivation, one refusal. The card `init` prints is advisory and
         # swallows what it cannot derive, because the repo is already made by
@@ -708,9 +708,7 @@ def _parse_layer_delta(text: str, shown: str, *, require_mapping: bool) -> Mappi
     return {}
 
 
-def read_layer_deltas(
-    repo_root: Path, config: Mapping[str, Any] | None = None
-) -> dict[str, Mapping[str, Any]]:
+def read_layer_deltas(repo_root: Path) -> dict[str, Mapping[str, Any]]:
     """Read the on-disk delta of every tier and app layer a repo carries.
 
     The read half of what :func:`_layer_profile_texts` emits, over the same
@@ -720,8 +718,7 @@ def read_layer_deltas(
     the build deploys, so every one is read and nothing else is.
 
     Args:
-        repo_root: The deployment repo whose layer directories are read.
-        config: Accepted for the existing call site and not consulted: the
+        repo_root: The deployment repo whose layer directories are read. The
             layer set is the files on disk, not anything the profile names.
 
     Returns:
@@ -737,7 +734,6 @@ def read_layer_deltas(
     """
     from .profile_root import layer_files
 
-    del config
     deltas: dict[str, Mapping[str, Any]] = {}
     for _kind, path in layer_files(repo_root):
         name = path.stem
@@ -1223,7 +1219,6 @@ def _layer_profile_texts(
     resolved: BuildProfile,
     profile_name: str,
     render_path_prefix: str,
-    host_preset: str,
 ) -> dict[str, str]:
     """Emit the tier and app files this profile's roster names.
 
@@ -1249,8 +1244,6 @@ def _layer_profile_texts(
         profile_name: The deployment's display name, which each tier is titled
             after.
         render_path_prefix: See above.
-        host_preset: The preset the host was materialized from. Unused: a tier
-            or app is laid over whatever profile sits beside it.
 
     Returns:
         ``{repo-relative file (tiers/<n>.yml, apps/<n>.yml): text}``, tiers
@@ -1261,7 +1254,6 @@ def _layer_profile_texts(
             or, once they all emit, with every privileged-terminal problem
             named at once.
     """
-    del host_preset
     from osprey.deployment.web_terminals.roster import (
         privileges_beyond_baseline,
         tier_privileges,
@@ -1353,13 +1345,6 @@ def _layer_profile_texts(
             "terminal that must not have it:\n  - " + "\n  - ".join(privilege_problems)
         )
     return texts
-
-
-def _preset_data_names(preset: str | None) -> tuple[str, str | None]:
-    """The ``(app template, facility)`` pair *preset*'s packaged data is composed from."""
-    from .build_profile_presets import preset_data_bundle, preset_facility
-
-    return preset_data_bundle(preset), preset_facility(preset)
 
 
 def _cleanup(target: Path, seeded: tuple[str, ...] = ()) -> str:
@@ -1714,9 +1699,7 @@ def _materialize_profile_directory(
     # names: each is materialized beside this one as an explicit file, laid over
     # this profile by its location. Emitted before the first mkdir, like
     # everything else here, so a bad roster reference fails before mutating.
-    render_texts = _layer_profile_texts(
-        resolved, profile_name_default, retired_layer_dirname, normalized_preset
-    )
+    render_texts = _layer_profile_texts(resolved, profile_name_default, retired_layer_dirname)
     # Parsed here, before the first mkdir and before `--force` replaces
     # anything: the parse is what validates the emitted deltas, so a bad one
     # must cost nothing. Its result is what every later reader sees.

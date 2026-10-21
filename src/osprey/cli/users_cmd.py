@@ -114,6 +114,8 @@ def _profile_roster_lists(profile_path: Path, user: str) -> bool:
     """Whether ``profile.yml``'s roster still names *user*."""
     import yaml
 
+    from osprey.deployment.web_terminals.roster import _roster_entry_name
+
     try:
         document = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
@@ -122,7 +124,7 @@ def _profile_roster_lists(profile_path: Path, user: str) -> bool:
     if located is None:
         return False
     container, key = located
-    return any(_entry_name(entry) == user for entry in container[key])
+    return any(_roster_entry_name(entry) == user for entry in container[key])
 
 
 def _rendered_roster_lists(config_path: str, user: str) -> bool:
@@ -133,6 +135,8 @@ def _rendered_roster_lists(config_path: str, user: str) -> bool:
     """
     import yaml
 
+    from osprey.deployment.web_terminals.roster import _roster_entry_name
+
     try:
         document = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
     except (OSError, yaml.YAMLError):
@@ -141,7 +145,9 @@ def _rendered_roster_lists(config_path: str, user: str) -> bool:
     web_terminals = modules.get("web_terminals") if isinstance(modules, dict) else None
     roster = web_terminals.get("users") if isinstance(web_terminals, dict) else None
     return (
-        any(_entry_name(entry) == user for entry in roster) if isinstance(roster, list) else False
+        any(_roster_entry_name(entry) == user for entry in roster)
+        if isinstance(roster, list)
+        else False
     )
 
 
@@ -152,11 +158,10 @@ def _refuse_app_card(session: _Repo, user: str) -> None:
     edit, so a refusal touches nothing. Both rosters are asked: the rendered
     ``build/config.yml`` the engines act on, and ``profile.yml``, which the
     ``remove`` resume path reads — an app added to the profile but not yet built
-    must not pass for a half-removed person. Each is read through
-    :func:`~osprey.deployment.web_terminals.roster.roster_entries`, the one
-    reader that knows both people and apps. The wording is the one
-    :func:`~osprey.deployment.web_terminals.lifecycle.refuse_app_card` raises,
-    so the verb and its engine refuse alike. An unreadable file names no app.
+    must not pass for a half-removed person. Each is judged by
+    :func:`~osprey.deployment.web_terminals.roster.refuse_app_card`, the check
+    the engine runs too, so the verb and its engine refuse alike. An unreadable
+    file names no app.
 
     Raises:
         ValueError: If *user* is a shared app card; the session reports it as
@@ -164,7 +169,7 @@ def _refuse_app_card(session: _Repo, user: str) -> None:
     """
     import yaml
 
-    from osprey.deployment.web_terminals.roster import is_app_entry, roster_entries
+    from osprey.deployment.web_terminals.roster import refuse_app_card
 
     def _load(path: Path) -> Any:
         try:
@@ -189,23 +194,7 @@ def _refuse_app_card(session: _Repo, user: str) -> None:
         subtrees.append({"shared": shared})
 
     for web_terminals in subtrees:
-        entries = roster_entries(web_terminals, strict=False)
-        if any(is_app_entry(entry) and entry["name"] == user for entry in entries):
-            raise ValueError(
-                f"{user} is a shared app card; remove it from modules.web_terminals.shared "
-                "in profile.yml and rebuild"
-            )
-
-
-def _entry_name(entry: Any) -> str | None:
-    """A roster entry's username, for either spelling (bare string or mapping)."""
-    if isinstance(entry, str):
-        return entry
-    if isinstance(entry, dict):
-        name = entry.get("name")
-        if isinstance(name, str):
-            return name
-    return None
+        refuse_app_card(web_terminals, user)
 
 
 class _RosterEdit(NamedTuple):

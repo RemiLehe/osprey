@@ -30,8 +30,9 @@ import tomllib
 from pathlib import Path
 
 from osprey.cli.build_profile import _load_preset_raw, list_presets
+from osprey.cli.build_profile_presets import list_apps, list_tiers
 
-#: preset name -> the ``dependencies:`` it declares in its own file.
+#: preset, tier or app name -> the ``dependencies:`` it declares in its own file.
 #:
 #: Raw rather than resolved, deliberately: this pins what an author edits. A
 #: value inherited through ``extends:`` shows up on the base that declares it,
@@ -41,6 +42,15 @@ PINNED_PRESET_DEPENDENCIES: dict[str, list[str]] = {
     # read ``[pymongo>=4.0]`` — see the module docstring.
     "control-assistant": [],
     "hello-world": [],
+    # A tier or app renders inside a deployment whose root it rides on, so a
+    # package one of them asks for would reach that deployment's environments
+    # exactly as a root preset's would.
+    "tiers/admin": [],
+    "tiers/readonly": [],
+    "tiers/readwrite": [],
+    "apps/channel-finder": [],
+    "apps/knowledge": [],
+    "apps/logbook": [],
 }
 
 #: Packages a build or deploy imports in the CLI's own process, which therefore
@@ -57,6 +67,15 @@ HOST_SIDE_PACKAGES = {
 }
 
 
+def _bundled_names() -> list[str]:
+    """Every bundled root preset, then every tier and app as ``<kind>/<stem>``."""
+    return (
+        list_presets()
+        + [f"tiers/{name}" for name in list_tiers()]
+        + [f"apps/{name}" for name in list_apps()]
+    )
+
+
 def _distribution_name(spec: str) -> str:
     """The bare distribution name from a requirement string."""
     from packaging.requirements import Requirement
@@ -71,19 +90,19 @@ def _framework_pyproject() -> dict:
 
 
 def test_bundled_preset_set_is_pinned():
-    """A new preset must be classified here before it ships.
+    """A new preset, tier or app must be classified here before it ships.
 
-    Without this the comparison below would silently skip an unpinned preset,
-    and the pin would degrade as presets are added.
+    Without this the comparison below would silently skip an unpinned one, and
+    the pin would degrade as presets, tiers and apps are added.
     """
-    assert list_presets() == sorted(PINNED_PRESET_DEPENDENCIES)
+    assert sorted(_bundled_names()) == sorted(PINNED_PRESET_DEPENDENCIES)
 
 
 def test_every_bundled_preset_declares_the_dependencies_it_is_pinned_to():
-    """No bundled preset asks for a package OSPREY does not already ship."""
+    """No bundled preset, tier or app asks for a package OSPREY does not already ship."""
     actual = {
         name: list(_load_preset_raw(name)[0].get("dependencies", []) or [])
-        for name in list_presets()
+        for name in _bundled_names()
     }
     assert actual == PINNED_PRESET_DEPENDENCIES
 

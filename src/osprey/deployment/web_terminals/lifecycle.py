@@ -124,7 +124,7 @@ from osprey.deployment.web_terminals.roster import (
     effective_image_source,
     entry_is_shared,
     freeze_user_indices,
-    is_app_entry,
+    refuse_app_card,
     resolve_cards,
     roster_entries,
 )
@@ -146,43 +146,6 @@ _USERS_KEY_PATH = ["modules", "web_terminals", "users"]
 # source zone, where a multi-gigabyte volume dump is one `git add .` away from
 # the history.
 _ARCHIVE_DIR_NAME = f"{STATE_DIR_NAME}/web_terminal_archives"
-
-
-def app_card_refusal(name: str) -> str:
-    """The one message every per-person roster verb refuses a shared app card with.
-
-    Args:
-        name: The app name the operator gave.
-
-    Returns:
-        The refusal, naming where the app card is actually removed.
-    """
-    return (
-        f"{name} is a shared app card; remove it from modules.web_terminals.shared "
-        "in profile.yml and rebuild"
-    )
-
-
-def refuse_app_card(web_terminals: Any, name: str) -> None:
-    """Refuse *name* when it is a shared app card rather than a person.
-
-    A shared app card has no workspace of its own to decommission and no
-    password of its own to rotate; it leaves the deployment by being dropped
-    from ``shared:``. Resolved through
-    :func:`~osprey.deployment.web_terminals.roster.roster_entries`, the one
-    reader that knows both people and apps, so a person and an app are never
-    confused. Called before any side effect, so a refusal touches nothing.
-
-    Args:
-        web_terminals: The ``modules.web_terminals`` subtree.
-        name: The name the operator gave.
-
-    Raises:
-        ValueError: If *name* is a shared app card.
-    """
-    entries = roster_entries(web_terminals, strict=False)
-    if any(is_app_entry(entry) and entry["name"] == name for entry in entries):
-        raise ValueError(app_card_refusal(name))
 
 
 def _require_running_runtime(config: dict[str, Any]) -> None:

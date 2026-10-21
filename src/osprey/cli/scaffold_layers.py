@@ -85,7 +85,7 @@ def plan_layer_files(
     preset, _preset_dir = resolve_build_profile(None, preset_name)
     # The repo root is where the reader stands, so headers name `tiers/<n>.yml`
     # with no directory prefix — the same text init writes into a repo root.
-    all_texts = _layer_profile_texts(preset, repo_name, "", preset_name)
+    all_texts = _layer_profile_texts(preset, repo_name, "")
     texts = {
         relative: text for relative, text in all_texts.items() if relative.startswith(f"{kind}/")
     }

@@ -18,7 +18,6 @@ from osprey.cli.build_profile_presets import (
     _load_preset_raw,
     _normalize_preset_name,
     _preset_exists,
-    _preset_extends_chain_reaches,
     layer_preset_kind,
     layer_preset_refusal,
     list_apps,
@@ -125,7 +124,6 @@ def test_deployment_helpers_ignore_layers() -> None:
     assert _preset_exists("readonly") is None
     assert _preset_exists("logbook") is None
     assert _preset_exists("control-assistant") is not None
-    assert _preset_extends_chain_reaches("readonly", "control-assistant") is False
 
 
 # --- the refusal at every verb ----------------------------------------------

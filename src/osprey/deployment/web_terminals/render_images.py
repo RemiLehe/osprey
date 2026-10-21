@@ -4,7 +4,7 @@
 referenced render before any compose invocation (the tag names the
 render's rendered project — see
 :func:`osprey.deployment.web_terminals.roster.resolve_cards` for the
-naming rules, including the legacy suffixed fallback). Each of those builds needs
+naming rules). Each of those builds needs
 a rendered render project as its context, and ``osprey build`` is what writes
 one: :func:`verify_renders` checks that every referenced render has
 one and refuses the start when it does not. Nothing here renders — a start runs
@@ -423,13 +423,12 @@ def _referenced_renders(config: dict, resolved_users: list[dict]) -> list[dict[s
         # The file this render is built from, by kind; carried here so
         # verify_renders need not re-walk the projection to explain an
         # absent render.
-        layer_dir = APPS_DIRNAME if served.kind == RENDER_KIND_APP else TIERS_DIRNAME
         referenced.append(
             {
                 "render": render_name,
                 "project": project,
                 "project_path": served.project_path,
-                "build_profile": f"{layer_dir}/{render_name}.yml",
+                "build_profile": _canonical_delta_reference(render_name, served.kind),
                 "image": image,
             }
         )

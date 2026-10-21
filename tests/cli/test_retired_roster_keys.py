@@ -31,11 +31,7 @@ from osprey.cli.build_profile_document import (
     _parse_profile_document,
     _read_profile_document,
 )
-from osprey.cli.build_profile_emit import (
-    emit_standalone_profile_yaml,
-    emits_layer_profiles,
-    render_catalog,
-)
+from osprey.cli.build_profile_emit import emit_standalone_profile_yaml, emits_layer_profiles
 from osprey.cli.build_profile_load import known_profile_keys
 from osprey.cli.build_profile_merge import resolve_profile_document
 from osprey.cli.build_profile_model import BuildProfile
@@ -561,7 +557,6 @@ def test_a_retired_catalog_in_a_profile_config_emits_no_render() -> None:
         },
     }
 
-    assert render_catalog(legacy) == {}
     assert not emits_layer_profiles(legacy)
 
 

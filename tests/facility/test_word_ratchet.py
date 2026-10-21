@@ -259,11 +259,7 @@ RETIRED_ROSTER_READERS: dict[str, str] = {
 }
 
 #: Trees a later task still rewords; that task deletes its row.
-RETIRED_ROSTER_INTERIM: dict[str, str] = {
-    "docs/**": "until Task 9.2 docs-vocabulary-sweep",
-    "plugins/**": "until Task 9.3 plugin-skills-and-context-template",
-    "changelog.d/**": "until Task 9.4 changelog-fragments",
-}
+RETIRED_ROSTER_INTERIM: dict[str, str] = {}
 
 #: A line carrying this is not reported: a data line that must spell the old key.
 RETIRED_SPELLING_MARKER = "retired-spelling"

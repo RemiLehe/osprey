@@ -62,7 +62,7 @@ _PORTS = layout_ports(DEFAULT_PORT_BASE)
 @pytest.fixture(scope="session")
 def exemplar() -> tuple[BuildProfile, dict]:
     resolved, _preset_dir = resolve_build_profile(None, "control-assistant", (), ())
-    texts = _layer_profile_texts(resolved, "Exemplar", "", "control-assistant")
+    texts = _layer_profile_texts(resolved, "Exemplar", "")
     return resolved, _parsed_layer_deltas(texts)
 
 
@@ -626,11 +626,17 @@ def test_read_layer_deltas_reads_one_delta_per_layer_file(lifecycle_repo: Path) 
     )
 
 
-def test_read_layer_deltas_never_consults_the_profile(
-    lifecycle_repo: Path, exemplar_config: dict
-) -> None:
-    # The layer set is the files on disk: the profile's config changes nothing.
-    assert read_layer_deltas(lifecycle_repo, exemplar_config) == read_layer_deltas(lifecycle_repo)
+def test_read_layer_deltas_never_consults_the_profile(lifecycle_repo: Path) -> None:
+    # The layer set is the files on disk: a profile whose roster names no tier
+    # and no app changes nothing.
+    before = read_layer_deltas(lifecycle_repo)
+    profile_path = lifecycle_repo / "profile.yml"
+    document = yaml.safe_load(profile_path.read_text(encoding="utf-8"))
+    document["config"] = {}
+    profile_path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    assert read_layer_deltas(lifecycle_repo) == before
+    assert list(before) == _EXEMPLAR_LAYERS
 
 
 def test_read_layer_deltas_reads_a_layer_file_added_to_the_directory(

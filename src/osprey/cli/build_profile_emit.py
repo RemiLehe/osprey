@@ -26,7 +26,7 @@ from __future__ import annotations
 import copy
 import io
 import re
-from collections.abc import Iterable, Mapping
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -797,23 +797,6 @@ def emits_layer_profiles(config: Mapping[str, Any]) -> bool:
     return bool(web_terminals.get("enabled")) and isinstance(renders, Mapping) and bool(renders)
 
 
-def render_catalog(config: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    """The render projection ``config`` carries — ``{}`` when it carries none.
-
-    Shares :func:`emits_layer_profiles`'s verdict rather than re-deriving it,
-    so the trigger and the thing triggered can never disagree. Entries that are
-    not name→mapping pairs are dropped: well-formedness is lint's job.
-    """
-    if not emits_layer_profiles(config):
-        return {}
-    renders = effective_web_terminals(config)["renders"]
-    return {
-        name: dict(entry)
-        for name, entry in renders.items()
-        if isinstance(name, str) and isinstance(entry, Mapping)
-    }
-
-
 def _to_plain(value: Any) -> Any:
     """Recursively convert ruamel container types to plain dict/list.
 
@@ -1224,21 +1207,6 @@ _ZONE_MAP = """\
 #   STATE    var/, the agent's memory and audit log. Not in git. Kept"""
 
 
-def render_catalog_layer(render_names: Iterable[str]) -> dict[str, Any]:
-    """A raw profile fragment for a catalog no profile carries: always empty.
-
-    A render's source is its file in ``tiers/`` or ``apps/``, and where it
-    lands is the build's projection
-    (:func:`~osprey.deployment.web_terminals.render_naming.derived_renders`),
-    so an emitted profile states neither.
-
-    Args:
-        render_names: Ignored.
-    """
-    del render_names
-    return {"config": {}}
-
-
 def triggers_layer() -> dict[str, Any]:
     """A raw profile fragment repointing ``dispatch.triggers`` at the profile's own file.
 
@@ -1248,6 +1216,25 @@ def triggers_layer() -> dict[str, Any]:
     here is a second path into the resolved content.
     """
     return {"dispatch": {"triggers": PROFILE_TRIGGERS_FILENAME}}
+
+
+def materialized_profile_text(preset_name: str, *, project_name: str, profile_name: str) -> str:
+    """The text of the profile ``osprey init`` writes for *preset_name* today.
+
+    One layering for every reader of the reference: :func:`materialized_profile`
+    parses it as data, and the revalidate fill parses it with its comments.
+
+    Raises:
+        BuildProfileError: When the preset is unknown or will not emit.
+    """
+    raw, anchor = _load_preset_raw(preset_name)
+    resolved = _resolve_extends(dict(raw), anchor)
+    layers: tuple[Mapping[str, Any], ...] = (
+        (triggers_layer(),) if isinstance(resolved.get("dispatch"), Mapping) else ()
+    )
+    return emit_standalone_profile_yaml(
+        preset_name, (), profile_name, project_name=project_name, extra_layers=layers
+    )
 
 
 def materialized_profile(
@@ -1280,13 +1267,8 @@ def materialized_profile(
     """
     from .build_profile_document import _parse_profile_document
 
-    raw, anchor = _load_preset_raw(preset_name)
-    resolved = _resolve_extends(dict(raw), anchor)
-    layers: tuple[Mapping[str, Any], ...] = (
-        (triggers_layer(),) if isinstance(resolved.get("dispatch"), Mapping) else ()
-    )
-    text = emit_standalone_profile_yaml(
-        preset_name, (), profile_name, project_name=project_name, extra_layers=layers
+    text = materialized_profile_text(
+        preset_name, project_name=project_name, profile_name=profile_name
     )
     # Parsed the way the profile on disk is, so the comparison downstream sees
     # exactly the keys a build would load from this text.

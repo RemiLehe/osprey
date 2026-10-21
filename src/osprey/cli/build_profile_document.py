@@ -17,6 +17,7 @@ on the parser.
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -192,17 +193,14 @@ def _rename_last_segment(container: dict, key: str, new_leaf: str) -> None:
     container.update(items)
 
 
-def _catalog_fields(path: tuple[str, ...], value: Any) -> list[tuple[str, str]]:
-    """``(name, field)`` pairs one dropped catalog key carried, any spelling."""
+def _catalog_knobs(path: tuple[str, ...], value: Any) -> Iterator[tuple[str, str, Any]]:
+    """``(name, knob, value)`` for every field one catalog key carried, any spelling."""
     if len(path) >= 2:
-        return [(path[0], path[1])]
-    if isinstance(value, dict):
-        pairs: list[tuple[str, str]] = []
+        yield path[0], path[1], value
+    elif isinstance(value, dict):
         for key, inner in value.items():
             if isinstance(key, str):
-                pairs.extend(_catalog_fields(path + tuple(key.split(".")), inner))
-        return pairs
-    return []
+                yield from _catalog_knobs(path + tuple(key.split(".")), inner)
 
 
 def _warn_retired(source: str, key: str, message: str) -> None:
@@ -218,6 +216,22 @@ def _refuse_mixed(source: str, old: str, new: str) -> BuildProfileError:
         f"Keep `{new}` only — run `osprey init --revalidate` to rewrite the "
         "retired spelling."
     )
+
+
+def _refuse_mixed_roster(found: _RosterSpellings, source: str) -> None:
+    """Refuse a document that spells one roster key both the retired and the tier way."""
+    for old, new, mixed in (
+        (RETIRED_DEFAULT_TIER_KEY, "default_tier", found.default_old and found.default_new),
+        (f"users[].{RETIRED_TIER_KEY}", "users[].tier", found.users_old and found.users_new),
+        (
+            f"authorization.roles.<role>.{RETIRED_TIER_KEY}",
+            "authorization.roles.<role>.tier",
+            found.roles_old and found.roles_new,
+        ),
+        (RETIRED_CATALOG_KEY, "renders", found.catalog and found.renders),
+    ):
+        if mixed:
+            raise _refuse_mixed(source, f"{_WT_LABEL}.{old}", f"{_WT_LABEL}.{new}")
 
 
 def _normalize_retired_roster_keys(raw: dict[str, Any], source: str) -> dict[str, Any]:
@@ -256,14 +270,7 @@ def _normalize_retired_roster_keys(raw: dict[str, Any], source: str) -> dict[str
     users_old = f"{_WT_LABEL}.users[].persona"
     roles_old = f"{_WT_LABEL}.authorization.roles.<role>.persona"
     catalog_old = f"{_WT_LABEL}.personas"
-    if found.default_old and found.default_new:
-        raise _refuse_mixed(source, default_old, f"{_WT_LABEL}.default_tier")
-    if found.users_old and found.users_new:
-        raise _refuse_mixed(source, users_old, f"{_WT_LABEL}.users[].tier")
-    if found.roles_old and found.roles_new:
-        raise _refuse_mixed(source, roles_old, f"{_WT_LABEL}.authorization.roles.<role>.tier")
-    if found.catalog and found.renders:
-        raise _refuse_mixed(source, catalog_old, f"{_WT_LABEL}.renders")
+    _refuse_mixed_roster(found, source)
 
     for container, key in found.default_old:
         _rename_last_segment(container, key, "default_tier")
@@ -293,7 +300,7 @@ def _normalize_retired_roster_keys(raw: dict[str, Any], source: str) -> dict[str
         )
     for container, key, path, value in found.catalog:
         del container[key]
-        for name, knob in _catalog_fields(path, value):
+        for name, knob, _value in _catalog_knobs(path, value):
             if knob in _DERIVED_CATALOG_KNOBS:
                 continue
             spelled = f"{catalog_old}.{name}.{knob}"
