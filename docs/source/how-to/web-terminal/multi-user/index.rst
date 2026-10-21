@@ -410,6 +410,8 @@ tier the roster uses and each shared app), under names it derives itself.
      - ``<registry.url>/web-terminal:<tag>``
    * - Every other tier, and every shared app
      - ``<registry.url>/web-terminal-<render>:<tag>``
+   * - The auth sidecar, when login is on
+     - ``<registry.url>/<project_name>-auth:<tag>``
 
 ``<render>`` is the tier's or app's file name (``tiers/<name>.yml``,
 ``apps/<name>.yml``), not its ``project``. The build derives the ``project`` as
@@ -443,8 +445,8 @@ Build each image from its rendered project, ``build/<project_name>-<render>``:
 the same render ``image_source: local`` builds as
 ``<project_name>-<render>:local``.
 
-Registry mode also pulls the auth sidecar from
-``modules.web_terminals.auth.image`` when login is on; see :doc:`login`.
+The pipeline pushes the auth sidecar under its name too, unless
+``modules.web_terminals.auth.image`` pins a published one; see :doc:`login`.
 
 ``osprey scaffold web-terminals lint``, ``osprey profile validate`` and
 ``osprey build`` refuse a registry-mode config with no ``registry.url`` (code

@@ -36,7 +36,10 @@ from osprey.deployment.compose_generator import (
     resolve_repo_root,
     simulated_target_configured,
 )
-from osprey.deployment.control_identity import CONTROL_IDENTITY_CONTAINER_PATH
+from osprey.deployment.control_identity import (
+    CONTROL_IDENTITY_CONTAINER_DIR,
+    CONTROL_IDENTITY_CONTAINER_PATH,
+)
 from osprey.deployment.qmd_service import is_loopback_bind
 from osprey.deployment.telemetry_config import (
     HISTORY_SERVICE,
@@ -73,6 +76,7 @@ from osprey.deployment.web_terminals.roster import (
     is_app_entry,
     resolve_access_principals,
     resolve_cards,
+    resolve_image_tag,
     roster_role_by_name,
 )
 from osprey.docs_links import PERIMETER_LIMITS_URL
@@ -118,8 +122,9 @@ _LANDING_TEMPLATE = "landing.html.j2"
 _COMPOSE_OUTPUT = "docker-compose.web.yml"
 _NGINX_OUTPUT = "nginx/nginx.conf"
 _LANDING_OUTPUT = "nginx/landing.html"
-# Mounted as `./build/control_identity/control_identity.py` by the template.
-_CONTROL_IDENTITY_OUTPUT = "control_identity/control_identity.py"
+# Bound as `./build/control_identity/` by the template: the identity script
+# and its catalog closure.
+_CONTROL_IDENTITY_DIR = "control_identity"
 
 # The one button a `names: hidden` users section shows in place of its cards.
 _SIGN_IN_LABEL = "Log in to your terminal"
@@ -1048,10 +1053,12 @@ def render_web_terminals(
         roster user whose location injects one. The write seam clears that directory
         first (see
         :func:`clear_nginx_templates_dir`), so a decommissioned user's snippet
-        cannot survive a re-render. Plus ``control_identity/control_identity.py``
-        — the packaged :mod:`osprey.deployment.control_identity` source, byte
-        for byte — only when the deployment is walled and some card sets a
-        ``control_identity``, i.e. exactly when the compose file binds it.
+        cannot survive a re-render. Plus one ``control_identity/<file>`` per
+        file of the control-identity script's catalog closure — the packaged
+        :mod:`osprey.deployment.control_identity` source and the helper rows it
+        imports beside itself, byte for byte — only when the deployment is
+        walled and some card sets a ``control_identity``, i.e. exactly when the
+        compose file binds that directory.
 
     Raises:
         ValueError: If ``modules.web_terminals.nginx_port`` is set to something
@@ -1589,10 +1596,12 @@ def render_web_terminals(
         # a record nothing looks for, and a missing record reads as "nothing
         # narrowed".
         "control_context_dir_env": CONTROL_CONTEXT_DIR_ENV_VAR,
-        # Where the staged identity module sits INSIDE the container, handed
-        # to the template from the module's own constant: the bind target and
-        # the path the entrypoint runs must be one spelling, not two.
+        # Where the staged identity directory is bound INSIDE the container,
+        # and the script's path within it, handed to the template from the
+        # module's own constants: the bind target and the path the entrypoint
+        # runs must agree, so neither is spelled in the template.
         "control_identity_container_path": CONTROL_IDENTITY_CONTAINER_PATH,
+        "control_identity_container_dir": CONTROL_IDENTITY_CONTAINER_DIR,
         # Which CHECKOUT this stack belongs to, baked into every container and
         # volume label the template emits. Derived through the same helper the
         # services stack renders from, so one deployment cannot end up with two
@@ -1670,6 +1679,9 @@ def render_web_terminals(
         # of them has to contend for the same lock.
         "guarded_run_source": repo_relative_mount_source(guarded_run_relpath()),
         **auth_tls_ctx,
+        # After the spread: the sidecar's image depends on registry.url and the
+        # project name, which the auth stanza alone does not carry.
+        "auth_image": resolve_auth_image(web_terminals, registry, project_name),
     }
 
     from osprey.interfaces.common_middleware import URL_MOUNT_ROOT
@@ -1733,18 +1745,24 @@ def render_web_terminals(
         rendered_nginx = conf_env.get_template(_NGINX_TEMPLATE).render(**nginx_ctx)
         rendered_landing = html_env.get_template(_LANDING_TEMPLATE).render(**landing_ctx)
 
-    # The source of the identity module's bind, written beside the compose file
-    # whenever the template emits that bind — the same predicate, so a card
-    # never mounts a missing file (which the runtime would turn into an empty
-    # directory) and a deployment with no identity stages nothing. Byte-equal
-    # to the packaged module, exactly as the build-context stager copies it.
+    # The source of the identity script's directory bind, written beside the
+    # compose file whenever the template emits that bind — the same predicate,
+    # so a card never mounts a missing directory (which the runtime would create
+    # empty) and a deployment with no identity stages nothing. The script and
+    # its catalog closure, byte-equal to their sources, exactly as the
+    # build-context stager copies them.
     identity_module: dict[str, str] = {}
     if auth_tls_ctx["walled"] and any(svc.get("control_identity") for svc in services):
-        from osprey.deployment import control_identity
+        from osprey.agent_runner.build_artifacts import BuildArtifactCatalog
+        from osprey.cli.templates.manager import TemplateManager
 
-        identity_module[_CONTROL_IDENTITY_OUTPUT] = Path(control_identity.__file__).read_text(
-            encoding="utf-8"
+        beside = BuildArtifactCatalog.default().files_beside(
+            "control-identity", TemplateManager().template_root
         )
+        for filename, source in sorted(beside.items()):
+            identity_module[f"{_CONTROL_IDENTITY_DIR}/{filename}"] = source.read_text(
+                encoding="utf-8"
+            )
 
     return {
         _COMPOSE_OUTPUT: rendered_compose,
@@ -2617,6 +2635,31 @@ def _tls_enabled(web_terminals: dict[str, Any]) -> bool:
     return bool(as_dict(web_terminals.get("tls")).get("enabled", False))
 
 
+def resolve_auth_image(
+    web_terminals: dict[str, Any], registry_cfg: Any, project_name: str
+) -> str | None:
+    """The image the auth sidecar's compose service runs, or ``None`` for the local tag.
+
+    An explicit ``auth.image`` wins in either image source: the deployment
+    pinned an external sidecar. Otherwise registry mode names the sidecar like
+    every other image the deployment pushes, under ``registry.url`` and the
+    tag :func:`resolve_image_tag` resolves, as ``<project>-auth`` -- the local
+    tag's name, so both sources call the sidecar the same thing. Local mode,
+    and registry mode with no ``registry.url`` (which the render refuses),
+    return ``None``, and the compose template falls back to
+    ``<project>-auth:local``.
+    """
+    pinned = as_dict(web_terminals.get("auth")).get("image")
+    if pinned:
+        return str(pinned)
+    if effective_image_source(web_terminals) == "local":
+        return None
+    registry_url = configured_registry_url(registry_cfg)
+    if not registry_url:
+        return None
+    return f"{registry_url}/{project_name}-auth:{resolve_image_tag(web_terminals)}"
+
+
 def _auth_tls_context(web_terminals: dict[str, Any], *, base: int | None = None) -> dict[str, Any]:
     """Read the ``web_terminals.auth``/``web_terminals.tls`` stanzas into the context
     keys the nginx seam and the auth sidecar's compose service consume.
@@ -2682,8 +2725,8 @@ def _auth_tls_context(web_terminals: dict[str, Any], *, base: int | None = None)
         ``sidecar_active``/``inject_secret``/``walled``/``token_exchange``/``open_perimeter``
         described above, ``auth_port``
         (int, the sidecar's listen port), ``auth_session_lifetime`` (int
-        seconds), ``auth_allow_insecure_http`` (bool), ``auth_image`` (str or
-        ``None`` — required only in registry image-source mode),
+        seconds), ``auth_allow_insecure_http`` (bool), ``auth_image`` (the explicit ``auth.image``
+        or ``None``; :func:`resolve_auth_image` adds the registry default),
         ``auth_oidc_issuer`` (str or ``None``),
         ``auth_oidc_client_id_env``/``auth_oidc_client_secret_env`` (the env-var
         *names* the sidecar reads its OIDC client credentials from — never the

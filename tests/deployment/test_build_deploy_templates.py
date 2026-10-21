@@ -80,9 +80,7 @@ def test_exemplar_declares_more_than_one_render(web_terminals: dict[str, Any]) -
     assert {u["tier"] for u in web_terminals["users"]} == {"readonly", "readwrite"}
 
 
-def test_pipeline_builds_no_web_terminal_image(
-    rendered_ci: str, web_terminals: dict[str, Any]
-) -> None:
+def test_pipeline_builds_no_web_terminal_image(rendered_ci: str) -> None:
     """No job in the pipeline builds a web-terminal image, per-render or not.
 
     The images stage covers the facility's own service directories only. A

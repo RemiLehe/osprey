@@ -36,17 +36,17 @@ PINNED_PRESET_HASHES: dict[str, str] = {
     # that moves it says why. A comment is not resolved content, and neither is
     # a key the hash pops before digesting, so editing either moves nothing.
     "control-assistant": (
-        "sha256:4e22120cbbd974c36c65f2820e67b2772858231e32adcde1384530cd204353de"
+        "sha256:c7644a72a9e376de3c85f97fce4d38cfed2a58ce14cb4edc0c0b8134db8ae698"
     ),
-    "hello-world": ("sha256:7c70f737295971c63093e823a2021e78251ca6c285b5da4c1f04cb0afd964803"),
+    "hello-world": ("sha256:029244f425e473d9e22635202920f1bb67474520cb5cffa97318a33c80c45240"),
     "tiers/admin": ("sha256:1a50a4f75750dd6d006e4ad3238eaeddeba1ff44182bd689a84efcde5585932b"),
     "tiers/readonly": ("sha256:bec2c97daa2bd8809bd3eb95b8509b3fba3425471a3b93c562a9429b1acde898"),
     "tiers/readwrite": ("sha256:04c999b7f9da029263f3103065a0d224889a3147359237aa6b815c1fe4dd0bd7"),
     "apps/channel-finder": (
-        "sha256:ee25872302648c7bbfd86eaf86dde719c42061932d988d5285afc05f8ae5ccd4"
+        "sha256:e2b8213367141ab27e1d71a6fba42143c6a94ade7b7efe48f36b9ca0c0a13df6"
     ),
-    "apps/knowledge": ("sha256:be60dca8ae98e8a0143211470722ebbc97402b7235b189179f2f6ed6f13d40b6"),
-    "apps/logbook": ("sha256:2e8bffd7c71d0a0e8eec506c3668e42f78071e30eb3dfd9f34175ce25e36e606"),
+    "apps/knowledge": ("sha256:3968102d73b9fd2ee13e8f0eb62f9e1e17700a725673222604b3cb833ec29a04"),
+    "apps/logbook": ("sha256:10fdb6c17c6725fc314745f767772c242afbc5ebd67ff6f61f38858e5c8755f6"),
 }
 
 

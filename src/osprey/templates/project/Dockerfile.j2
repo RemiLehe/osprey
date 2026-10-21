@@ -255,6 +255,20 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && apt-get autoremove -y \
     && rm -rf /tmp/deps-ctx
 
+# Headless Chromium for the artifact converter, which renders HTML, Markdown
+# and notebook artifacts to PNG so they can be attached to a logbook entry.
+# Installed here, as root and with its system libraries, because the agent runs
+# unprivileged and cannot apt-install them on demand; the browser lands in a
+# shared path so that user finds it. The headless shell is all the converter
+# launches, so the full browser is not installed. It sits after the deps layer
+# because the playwright package it runs comes from there, and before the dev
+# wheel so that rebuilding with a local wheel does not fetch it again.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    export http_proxy="${http_proxy:-${HTTP_PROXY:-}}" https_proxy="${https_proxy:-${HTTPS_PROXY:-}}" no_proxy="${no_proxy:-${NO_PROXY:-}}"; \
+    python -m playwright install --with-deps --only-shell chromium
+
 # Dev wheel drop (wheel layer). `osprey up --dev` stages a locally-built
 # wheel in the build context; when present, reinstall osprey from it (deps
 # first, then a --no-deps --force-reinstall so the local build wins over the

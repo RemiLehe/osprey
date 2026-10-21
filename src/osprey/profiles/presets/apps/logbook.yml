@@ -38,9 +38,6 @@ default_panel: ariel
 channel_finder_mode: null
 
 hooks:
-  - hook-log          # Append every tool call to a structured JSONL audit log
-  - target-state      # Stdlib reader for the control-target state file (helper, not wired to an event)
-  - hook-config       # Inject project config.yml path into every tool call env
   - approval          # Gate logbook entry creation on user approval prompt
   - error-guidance    # Post-error hook that surfaces remediation hints
   - memory-guard      # Gate Write to memory files, NotebookEdit to agent-data artifacts and notebooks

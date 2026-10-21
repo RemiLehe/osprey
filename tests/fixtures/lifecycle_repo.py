@@ -202,9 +202,6 @@ channel_finder_mode: graph
 # need; add your own through an overlay.
 
 hooks:
-  - hook-log          # Append every tool call to a structured JSONL audit log
-  - target-state      # Stdlib reader for the control-target state file (helper, not wired to an event)
-  - hook-config       # Inject project config.yml path into every tool call env
   - approval          # Gate hardware-write tool calls on human approval prompt
   - writes-check      # Kill switch: refuse every write while writes_enabled is false
   - limits            # Enforce per-channel min/max limits before writes
@@ -1835,9 +1832,6 @@ default_panel: ariel
 channel_finder_mode: null
 
 hooks:
-  - hook-log          # Append every tool call to a structured JSONL audit log
-  - target-state      # Stdlib reader for the control-target state file (helper, not wired to an event)
-  - hook-config       # Inject project config.yml path into every tool call env
   - approval          # Gate logbook entry creation on user approval prompt
   - error-guidance    # Post-error hook that surfaces remediation hints
   - memory-guard      # Gate Write to memory files, NotebookEdit to agent-data artifacts and notebooks
@@ -1956,9 +1950,6 @@ default_panel: okf
 channel_finder_mode: graph
 
 hooks:
-  - hook-log          # Append every tool call to a structured JSONL audit log
-  - target-state      # Stdlib reader for the control-target state file (helper, not wired to an event)
-  - hook-config       # Inject project config.yml path into every tool call env
   - approval          # Enforce config.yml approval policy (fail-closed default for any write tool)
   - error-guidance    # Post-error hook that surfaces remediation hints
   - memory-guard      # Gate Write to memory files, NotebookEdit to agent-data artifacts and notebooks
@@ -2069,9 +2060,6 @@ default_panel: channel-finder
 channel_finder_mode: hierarchical
 
 hooks:
-  - hook-log          # Append every tool call to a structured JSONL audit log
-  - target-state      # Stdlib reader for the control-target state file (helper, not wired to an event)
-  - hook-config       # Inject project config.yml path into every tool call env
   - approval          # Enforce config.yml approval policy (fail-closed default for any write tool)
   - error-guidance    # Post-error hook that surfaces remediation hints
   - memory-guard      # Gate Write to memory files, NotebookEdit to agent-data artifacts and notebooks

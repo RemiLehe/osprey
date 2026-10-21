@@ -144,7 +144,7 @@ def test_a_fresh_build_from_this_checkout_is_clean(repo):
 
 @pytest.mark.parametrize("stamp", ["unknown", "", "not-a-version", None, 7])
 def test_an_uncomparable_stamp_is_not_judged_too_old(repo, stamp):
-    """"Cannot compare" must never read as "too old"; check_drift never raises."""
+    """ "Cannot compare" must never read as "too old"; check_drift never raises."""
     _write_manifest(repo, osprey_version=stamp)
 
     report = staleness.check_drift(repo)

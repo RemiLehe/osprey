@@ -400,6 +400,19 @@ def test_per_user_services_bind_loopback_not_0_0_0_0() -> None:
         assert env["OSPREY_TERMINAL_BIND_HOST"] == "127.0.0.1"
 
 
+def test_every_service_runs_with_no_new_privileges() -> None:
+    """No process in a terminal, nginx or login container may gain a privilege.
+
+    A setuid binary in the image could otherwise hand the agent a capability
+    that undoes the non-dumpable guard on the terminal's own processes.
+    """
+    services = _compose(_auth_config())["services"]
+
+    assert {"nginx", "auth", "web-alice", "web-bob", "web-carol"} <= services.keys()
+    for name, service in services.items():
+        assert service["security_opt"] == ["no-new-privileges:true"], name
+
+
 def test_nginx_fragment_has_one_routing_location_per_user() -> None:
     """nginx.conf.j2 emits one `location /u/<user>/` proxy block per configured user."""
     # Arrange
@@ -3576,6 +3589,7 @@ def test_auth_sidecar_service_image_defaults_to_the_local_build_tag() -> None:
     `facility.prefix`, the same tag provision builds."""
     # Act
     config = _auth_config()
+    config["modules"]["web_terminals"]["image_source"] = "local"
     auth = _compose(config)["services"]["auth"]
 
     # Assert
@@ -3612,6 +3626,7 @@ def test_containers_and_auth_image_are_named_by_the_project_not_the_facility() -
     from osprey.deployment.web_terminals.provision import auth_sidecar_local_tag
 
     config = _auth_config(["alice", "bob"])
+    config["modules"]["web_terminals"]["image_source"] = "local"
     config["project_name"] = "beamline-ops"
     config["facility"]["prefix"] = "dls"
 
@@ -3640,6 +3655,76 @@ def test_auth_sidecar_service_image_pins_a_configured_registry_image() -> None:
 
     # Assert
     assert auth["image"] == image
+
+
+def test_registry_mode_names_the_auth_sidecar_under_the_registry_and_image_tag(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Registry mode with no `auth.image`: the sidecar is `<registry.url>/<project>-auth`
+    on the tag every terminal image carries, `${VAR}` expanded at render, so one
+    `OSPREY_IMAGE_TAG` names every image the deployment pushes."""
+    # Arrange
+    monkeypatch.setenv("OSPREY_IMAGE_TAG", "3f9c2a1b0")
+    config = _auth_config(["alice"])
+    config["modules"]["web_terminals"]["image_tag"] = "${OSPREY_IMAGE_TAG}"
+
+    # Act
+    services = _compose(config)["services"]
+
+    # Assert
+    registry = "git.dls.example.org:5050/physics/production/dls-profiles"
+    assert services["auth"]["image"] == f"{registry}/dls_controls-auth:3f9c2a1b0"
+    assert services["web-alice"]["image"] == f"{registry}/web-terminal:3f9c2a1b0"
+
+
+def test_registry_mode_auth_sidecar_defaults_to_the_latest_tag() -> None:
+    """With no `image_tag` the sidecar follows the terminal images' `latest`."""
+    auth = _compose(_auth_config())["services"]["auth"]
+
+    assert auth["image"] == (
+        "git.dls.example.org:5050/physics/production/dls-profiles/dls_controls-auth:latest"
+    )
+
+
+def test_drift_reconcile_recreates_the_auth_sidecar_on_a_new_image_tag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The post-`up` reconcile reads image names back out of the rendered compose
+    file. The sidecar's tag is a literal there, so a pull under a new
+    `OSPREY_IMAGE_TAG` that leaves the running sidecar on the old image recreates it."""
+    # Arrange
+    from osprey.deployment.web_terminals import provision
+
+    monkeypatch.setenv("OSPREY_IMAGE_TAG", "3f9c2a1b0")
+    config = _auth_config(["alice"])
+    config["modules"]["web_terminals"]["image_tag"] = "${OSPREY_IMAGE_TAG}"
+    compose_text = render_web_terminals(config)["docker-compose.web.yml"]
+    build = tmp_path / "build"
+    build.mkdir()
+    (build / "docker-compose.web.yml").write_text(compose_text, encoding="utf-8")
+    services = yaml.safe_load(compose_text)["services"]
+    sidecar_image = services["auth"]["image"]
+    assert sidecar_image.endswith("/dls_controls-auth:3f9c2a1b0")
+
+    monkeypatch.setattr(provision, "get_runtime_command", lambda config=None: ["podman", "compose"])
+    monkeypatch.setattr(
+        provision,
+        "get_image_id",
+        lambda runtime, image, env=None: "idNEW" if image == sidecar_image else "same",
+    )
+    monkeypatch.setattr(
+        provision,
+        "get_container_image_id",
+        lambda runtime, container, env=None: "idOLD" if container.endswith("-auth") else "same",
+    )
+    recorded: list[list[str]] = []
+    monkeypatch.setattr(provision, "run_captured", lambda cmd, **kwargs: recorded.append(list(cmd)))
+
+    # Act
+    provision._reconcile_web_stack_recreates({}, ["podman", "compose"], {}, repo_root=tmp_path)
+
+    # Assert
+    assert recorded == [["podman", "compose", "up", "-d", "--force-recreate", "auth"]]
 
 
 def test_auth_sidecar_service_carries_the_roster_in_declaration_order() -> None:
@@ -6449,11 +6534,15 @@ def test_control_identity_is_independent_of_the_other_svc_fields() -> None:
     assert services["bob"]["control_identity"] == "bob"
 
 
-def test_compose_ctx_hands_the_template_the_control_identity_container_path() -> None:
-    """The staged module's container path reaches the compose template from the
-    module's own constant, so the template never spells the path itself."""
+def test_compose_ctx_hands_the_template_the_control_identity_container_paths() -> None:
+    """The staged directory's container path and the script's path inside it
+    reach the compose template from the module's own constants, so the
+    template never spells a path itself."""
     # Arrange
-    from osprey.deployment.control_identity import CONTROL_IDENTITY_CONTAINER_PATH
+    from osprey.deployment.control_identity import (
+        CONTROL_IDENTITY_CONTAINER_DIR,
+        CONTROL_IDENTITY_CONTAINER_PATH,
+    )
 
     # Act
     contexts = _capture_render_contexts(copy.deepcopy(_config(["alice"])))
@@ -6461,6 +6550,7 @@ def test_compose_ctx_hands_the_template_the_control_identity_container_path() ->
     # Assert
     compose_ctx = contexts["docker-compose.web.yml.j2"]
     assert compose_ctx["control_identity_container_path"] == CONTROL_IDENTITY_CONTAINER_PATH
+    assert compose_ctx["control_identity_container_dir"] == CONTROL_IDENTITY_CONTAINER_DIR
 
 
 # ---------------------------------------------------------------------------
@@ -6569,7 +6659,16 @@ def test_render_accepts_one_person_on_two_cards_under_one_control_identity() -> 
 # control_identity -> the walled card's env, mount and staged module artifact
 # ---------------------------------------------------------------------------
 
-_CONTROL_IDENTITY_ARTIFACT = "control_identity/control_identity.py"
+
+def _identity_artifacts() -> dict[str, Path]:
+    """The staged directory's files, keyed by their output path: the script and its closure."""
+    from osprey.agent_runner.build_artifacts import BuildArtifactCatalog
+    from osprey.cli.templates.manager import TemplateManager
+
+    files = BuildArtifactCatalog.default().files_beside(
+        "control-identity", TemplateManager().template_root
+    )
+    return {f"control_identity/{name}": source for name, source in files.items()}
 
 
 def _identity_roster() -> list:
@@ -6586,9 +6685,9 @@ def _walled_identity_config(method: str) -> dict:
 
 
 def _identity_mount() -> str:
-    from osprey.deployment.control_identity import CONTROL_IDENTITY_CONTAINER_PATH
+    from osprey.deployment.control_identity import CONTROL_IDENTITY_CONTAINER_DIR
 
-    return f"./build/control_identity/control_identity.py:{CONTROL_IDENTITY_CONTAINER_PATH}:ro"
+    return f"./build/control_identity:{CONTROL_IDENTITY_CONTAINER_DIR}:ro"
 
 
 @pytest.mark.parametrize("method", ["password", "oidc"])
@@ -6614,11 +6713,12 @@ def test_walled_card_with_control_identity_emits_the_identity_and_module_env(met
 
 
 @pytest.mark.parametrize("method", ["password", "oidc"])
-def test_walled_card_with_control_identity_mounts_the_staged_module_read_only(
+def test_walled_card_with_control_identity_mounts_the_staged_directory_read_only(
     method: str,
 ) -> None:
-    """The module the entrypoint runs is bound read-only from the build zone at
-    the path the env names, and only into the card that applies an identity."""
+    """The staged directory -- the script the env names and its closure -- is
+    bound read-only from the build zone in one bind, and only into the card
+    that applies an identity."""
     # Arrange
     config = copy.deepcopy(_walled_identity_config(method))
 
@@ -6626,7 +6726,8 @@ def test_walled_card_with_control_identity_mounts_the_staged_module_read_only(
     compose = yaml.safe_load(render_web_terminals(config)["docker-compose.web.yml"])
 
     # Assert
-    assert _identity_mount() in compose["services"]["web-alice"]["volumes"]
+    alice_volumes = compose["services"]["web-alice"]["volumes"]
+    assert [v for v in alice_volumes if "control_identity" in str(v)] == [_identity_mount()]
     assert not any("control_identity" in str(v) for v in compose["services"]["web-bob"]["volumes"])
 
 
@@ -6647,19 +6748,22 @@ def test_control_identity_env_lines_use_the_quoted_whole_pair_form() -> None:
 
 
 @pytest.mark.parametrize("method", ["password", "oidc"])
-def test_walled_render_stages_the_module_byte_equal_to_the_package_source(method: str) -> None:
-    """The mount source is written by the render itself, byte-equal to the
-    packaged module, so the bind never lands on a missing file."""
+def test_walled_render_stages_the_closure_byte_equal_to_its_sources(method: str) -> None:
+    """The bound directory is written by the render itself: exactly the script
+    and its closure, byte-equal to their sources, so a bind never lands on a
+    missing file."""
     # Arrange
-    from osprey.deployment import control_identity
-
     config = copy.deepcopy(_walled_identity_config(method))
 
     # Act
     artifacts = render_web_terminals(config)
 
     # Assert
-    assert artifacts[_CONTROL_IDENTITY_ARTIFACT] == Path(control_identity.__file__).read_text()
+    expected = _identity_artifacts()
+    staged = {path for path in artifacts if path.startswith("control_identity/")}
+    assert staged == set(expected)
+    for path, source in expected.items():
+        assert artifacts[path] == source.read_text(encoding="utf-8"), path
 
 
 @pytest.mark.parametrize("method", ["none", "token"])
@@ -6678,7 +6782,7 @@ def test_unwalled_card_with_control_identity_emits_nothing(method: str) -> None:
     baseline = render_web_terminals(copy.deepcopy(without_identity))
 
     # Assert
-    assert _CONTROL_IDENTITY_ARTIFACT not in artifacts
+    assert not any(path.startswith("control_identity/") for path in artifacts)
     assert "OSPREY_CONTROL_IDENTITY" not in artifacts["docker-compose.web.yml"]
     assert artifacts["docker-compose.web.yml"] == baseline["docker-compose.web.yml"]
 
@@ -6693,6 +6797,6 @@ def test_walled_roster_without_any_control_identity_emits_nothing() -> None:
     artifacts = render_web_terminals(config)
 
     # Assert
-    assert _CONTROL_IDENTITY_ARTIFACT not in artifacts
+    assert not any(path.startswith("control_identity/") for path in artifacts)
     assert "OSPREY_CONTROL_IDENTITY" not in artifacts["docker-compose.web.yml"]
-    assert "control_identity.py" not in artifacts["docker-compose.web.yml"]
+    assert "./build/control_identity" not in artifacts["docker-compose.web.yml"]

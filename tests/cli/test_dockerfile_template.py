@@ -331,6 +331,28 @@ class TestDockerfileContent:
         assert "--force-reinstall" in wheel
         assert "--force-reinstall" not in deps
 
+    def test_converter_browser_is_baked_in_with_its_libraries(self, hello_project):
+        """The artifact converter's Chromium ships in the image, launchable by
+        the unprivileged agent: installed as root with its system libraries,
+        into a shared path, between the deps layer and the dev wheel."""
+        text = (hello_project / "Dockerfile").read_text()
+        bodies = [b for b in self._run_command_bodies(text) if "playwright install" in b]
+        assert len(bodies) == 1, f"expected exactly one browser RUN, got {len(bodies)}"
+        browser = bodies[0]
+        assert "--with-deps" in browser
+        assert "chromium" in browser
+
+        env = re.search(r"^ENV PLAYWRIGHT_BROWSERS_PATH=(\S+)$", text, re.MULTILINE)
+        assert env, "the browser path must be shared, not root's home cache"
+        assert not env.group(1).startswith(("/root", "/home"))
+
+        assert (
+            text.index("apt-get purge -y build-essential")
+            < env.start()
+            < text.index("playwright install")
+            < text.index("--force-reinstall")
+        )
+
     def test_deps_run_primes_pip_spec_with_dev_fallback(self, hello_project):
         """The deps RUN installs ``$OSPREY_PIP_SPEC`` and carries the dev-gated
         fallback (warn + install unpinned) guarded on ``OSPREY_DEV=1``."""

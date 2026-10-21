@@ -1474,6 +1474,31 @@ class _Layer:
     text: str
 
 
+def _drop_helper_selections(document: Any) -> list[str]:
+    """Remove every helper file a ``hooks:`` list names, in place.
+
+    A helper ships as the closure of the hooks that import it, so the build
+    refuses one named in the list; the previous release's presets named them.
+    Each entry's own line comment goes with it.
+
+    Returns:
+        The helper names removed, in list order.
+    """
+    from osprey.agent_runner.build_artifacts.catalog import BuildArtifactCatalog
+
+    hooks = document.get("hooks") if isinstance(document, dict) else None
+    if not isinstance(hooks, CommentedSeq):
+        return []
+    helpers = BuildArtifactCatalog.default().helpers()
+    removed: list[str] = []
+    for index in reversed(range(len(hooks))):
+        entry = hooks[index]
+        if isinstance(entry, str) and f"hooks/{entry}" in helpers:
+            removed.insert(0, entry)
+            del hooks[index]
+    return removed
+
+
 def _catalog_stem(build_profile: Any) -> str | None:
     """``<s>`` when a catalog ``build_profile`` names ``<d>/<s>.yml`` for a directory ``<d>`` read as tiers."""
     if not isinstance(build_profile, str):
@@ -1532,6 +1557,8 @@ def revalidate_repo(root: Path, *, preset: str | None = None) -> RevalidateResul
         overlay_catalogs[rel] = _rewrite_roster_keys(overlay, rel)
         overlays[rel] = overlay
     documents = {PROFILE_FILENAME: document, **overlays}
+    for doc in documents.values():
+        _drop_helper_selections(doc)
 
     # ── Which file each catalog entry built ─────────────────────────────────
     _refuse_dir_clash(root)
