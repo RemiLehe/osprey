@@ -168,6 +168,18 @@ describe('dropdown portal: escaping the dockview tab strip', () => {
     expect(document.getElementById('session-dropdown')).toBeNull();
   });
 
+  // The close-on-scroll listener is capture-phase on window, so it also sees
+  // the list's own scroll -- scrolling to an older session closed the picker.
+  test('scrolling the session list itself keeps the dropdown open', async () => {
+    stubSessions(RECORDS);
+    sessions.initSessionSelector('session-selector');
+    await openPicker();
+
+    const list = /** @type {HTMLElement} */ (document.getElementById('session-dropdown-list'));
+    list.dispatchEvent(new Event('scroll'));
+    expect(document.getElementById('session-dropdown')).not.toBeNull();
+  });
+
   test('re-initializing the selector tears down a dropdown left open', async () => {
     stubSessions(RECORDS);
     sessions.initSessionSelector('session-selector');

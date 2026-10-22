@@ -91,7 +91,12 @@ function openDropdown(btn) {
   };
   // Close on reflow rather than running a reposition loop: the anchor lives in
   // a scrollable tab strip, so a stale popover would drift off its button.
-  const onReflow = () => closeDropdown();
+  // The scroll listener is capture-phase, so it also sees the dropdown's own
+  // list scrolling; that moves nothing and must not close the picker.
+  const onReflow = (/** @type {Event} */ e) => {
+    if (e.target instanceof Node && dropdown.contains(e.target)) return;
+    closeDropdown();
+  };
   document.addEventListener('pointerdown', onDown, true);
   document.addEventListener('keydown', onKey, true);
   window.addEventListener('resize', onReflow);
