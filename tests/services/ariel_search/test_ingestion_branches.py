@@ -552,6 +552,27 @@ class TestALSPostEntry:
 
         assert "without an entry ID" in str(exc_info.value)
 
+    @pytest.mark.parametrize(
+        "body",
+        [
+            "<root><author>operator</author><password>hunter2</password></root>",
+            "<root><password>hunter2",
+        ],
+        ids=["echoed", "truncated"],
+    )
+    @pytest.mark.asyncio
+    async def test_echoed_password_never_reaches_the_error(self, body):
+        """An older olog echoes the password; the quoted body masks it."""
+        adapter = _als_write_adapter()
+        session = _http_session(post=_http_response(text=body))
+
+        with _patched_session(adapter, session):
+            with pytest.raises(IngestionError) as exc_info:
+                await adapter._post_entry("https://elog.als.invalid/olog", "<root/>")
+
+        assert "hunter2" not in str(exc_info.value)
+        assert "<password>***</password>" in str(exc_info.value)
+
     @pytest.mark.asyncio
     async def test_xml_is_sent_as_the_xml_form_field(self):
         """The XML rides the ``xml`` form field, never a raw body.

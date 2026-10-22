@@ -103,6 +103,7 @@ _HREF = re.compile(r"""href\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))""", re.IGNOR
 _TRAILING_SPACE = re.compile(r"[ \t]+\n")
 _BLANK_RUN = re.compile(r"\n{3,}")
 _MAX_DECODE_PASSES = 3
+_ECHOED_PASSWORD = re.compile(r"<password\b[^>]*>.*?(?:</password>|$)", re.IGNORECASE | re.DOTALL)
 # The logbook's escaping: a backslash run before a quote mark, or a doubled backslash.
 _BACKSLASH_ESCAPE = re.compile(r"""\\+(['"])|\\{2,}""")
 
@@ -618,7 +619,10 @@ class ALSLogbookAdapter(FacilityAdapter):
                 + (" ".join(messages) or "Please check your credentials."),
                 source_system=self.source_system_name,
             )
-        detail = "; ".join(messages) or body.strip()[:500] or "empty response"
+        # Olog releases before 3.4.032 echo the password back, so the body is
+        # masked before any of it can reach an error message.
+        excerpt = _ECHOED_PASSWORD.sub("<password>***</password>", body).strip()[:500]
+        detail = "; ".join(messages) or excerpt or "empty response"
         if status >= 400 or messages:
             raise IngestionError(
                 f"ALS olog write failed with HTTP {status}: {detail}",
