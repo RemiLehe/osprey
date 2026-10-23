@@ -180,6 +180,29 @@ describe('dropdown portal: escaping the dockview tab strip', () => {
     expect(document.getElementById('session-dropdown')).not.toBeNull();
   });
 
+  // The chat pane auto-scrolls on every new line of output; that scroll moves
+  // nothing the picker hangs off, so it must not close it mid-turn.
+  test('a scroll elsewhere on the page keeps the dropdown open', async () => {
+    stubSessions(RECORDS);
+    sessions.initSessionSelector('session-selector');
+    await openPicker();
+
+    const chat = document.createElement('div');
+    document.body.appendChild(chat);
+    chat.dispatchEvent(new Event('scroll'));
+    expect(document.getElementById('session-dropdown')).not.toBeNull();
+  });
+
+  test('a scroll that moves the picker button closes the dropdown', async () => {
+    stubSessions(RECORDS);
+    sessions.initSessionSelector('session-selector');
+    await openPicker();
+
+    const strip = /** @type {HTMLElement} */ (document.getElementById('session-selector'));
+    strip.dispatchEvent(new Event('scroll'));
+    expect(document.getElementById('session-dropdown')).toBeNull();
+  });
+
   test('re-initializing the selector tears down a dropdown left open', async () => {
     stubSessions(RECORDS);
     sessions.initSessionSelector('session-selector');

@@ -91,10 +91,12 @@ function openDropdown(btn) {
   };
   // Close on reflow rather than running a reposition loop: the anchor lives in
   // a scrollable tab strip, so a stale popover would drift off its button.
-  // The scroll listener is capture-phase, so it also sees the dropdown's own
-  // list scrolling; that moves nothing and must not close the picker.
+  // The scroll listener is capture-phase and sees every scroll on the page --
+  // the list's own, the chat pane following new output -- so only one that
+  // moves the button closes the picker.
   const onReflow = (/** @type {Event} */ e) => {
-    if (e.target instanceof Node && dropdown.contains(e.target)) return;
+    const t = e.target;
+    if (t instanceof Node && !t.contains(btn)) return;
     closeDropdown();
   };
   document.addEventListener('pointerdown', onDown, true);
