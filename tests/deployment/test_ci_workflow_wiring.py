@@ -158,6 +158,9 @@ NO_MODEL_TEST_FILES = (
     "tests/e2e/web_terminals/test_session_restart_e2e.py",
     "tests/e2e/web_terminals/test_terminal_auth_e2e.py",
     "tests/e2e/web_terminals/test_render_permissions_scripted.py",
+    "tests/e2e/claude_code/test_chat_approval_gates_scripted.py",
+    "tests/e2e/claude_code/test_chat_plan_mode_scripted.py",
+    "tests/e2e/claude_code/test_chat_attachment_read_scripted.py",
 )
 SAME_REPO_CLAUSE = "github.event.pull_request.head.repo.full_name == github.repository"
 

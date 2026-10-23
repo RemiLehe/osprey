@@ -1700,6 +1700,9 @@ jobs:
             --ignore=tests/e2e/web_terminals/test_session_restart_e2e.py \
             --ignore=tests/e2e/web_terminals/test_terminal_auth_e2e.py \
             --ignore=tests/e2e/web_terminals/test_render_permissions_scripted.py \
+            --ignore=tests/e2e/claude_code/test_chat_approval_gates_scripted.py \
+            --ignore=tests/e2e/claude_code/test_chat_plan_mode_scripted.py \
+            --ignore=tests/e2e/claude_code/test_chat_attachment_read_scripted.py \
             --ignore=tests/e2e/tier2
         fi
     # On failure only: container logs, exit codes, `OOMKilled`, and runner
@@ -1898,6 +1901,9 @@ jobs:
           tests/e2e/web_terminals/test_session_restart_e2e.py \
           tests/e2e/web_terminals/test_terminal_auth_e2e.py \
           tests/e2e/web_terminals/test_render_permissions_scripted.py \
+          tests/e2e/claude_code/test_chat_approval_gates_scripted.py \
+          tests/e2e/claude_code/test_chat_plan_mode_scripted.py \
+          tests/e2e/claude_code/test_chat_attachment_read_scripted.py \
           -v --tb=short --durations=15 -n 4 --dist loadfile \
           --junitxml=junit-e2e-no-model.xml
 
