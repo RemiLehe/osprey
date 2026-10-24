@@ -61,14 +61,15 @@ async def hybrid_search(
 ) -> str:
     """Search the ARIEL logbook using hybrid keyword + semantic ranking.
 
-    Runs both a keyword and a vector query over the mirrored logbook corpus and
-    returns one merged ranking. Best when a question mixes specific terms with a
-    described situation, or when keyword_search returned too little.
+    Runs qmd BM25 over the mirrored logbook and Nomic vector search over ARIEL's
+    PostgreSQL embeddings, then fuses their ranks. Best when a question mixes
+    specific terms with a described situation, or when keyword_search returned
+    too little.
 
     Filtering here is best-effort, and that matters for how you read a short
-    result set. The corpus is ranked first and the date, author and
-    source_system filters are applied afterwards to the top of that ranking —
-    they are not applied inside the database. A selective filter can therefore
+    result set. qmd's lexical corpus is ranked first and the date, author and
+    source_system filters are applied afterwards to that lane's top results;
+    the Nomic lane applies them in PostgreSQL. A selective filter can therefore
     return fewer than max_results entries even when more matching entries exist
     in the corpus. Read a short result set as "the ranked window ran out", never
     as "no more matching entries exist". When a filter has to be exhaustive —
@@ -87,10 +88,10 @@ async def hybrid_search(
         expand_query: Apply the facility vocabulary (shorthand/acronym expansion).
             None = the configured default; see capabilities().vocabulary.expand_by_default.
         rerank: Reorder the merged ranking with the qmd sidecar's LLM reranker.
-            None = the configured default. Reranking significantly improves
-            which entries come back and how they are ordered but is much
-            slower, so pass rerank=false and judge relevance yourself when
-            speed matters.
+            None = the configured default. A deployment configured with
+            rerank=false has disabled the model and cannot be overridden by a
+            request. Where enabled, reranking can improve which entries come
+            back and how they are ordered but is much slower.
         include_images: Also match entries by what their attached pictures show.
             None = on when capabilities().attachments.picture_search.
 

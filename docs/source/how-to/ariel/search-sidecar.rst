@@ -13,9 +13,12 @@ per corpus. Two parts of OSPREY use them:
 * the :doc:`facility-knowledge (OKF) bundle <../facility-knowledge/okf-bundle>`
   --- its panel and its MCP ``search`` tool.
 
-One query fans out into a keyword and a vector sub-query, merges them into a
-bounded candidate pool, and optionally re-scores that pool with a small language
-model before returning hits:
+qmd can fan one query out into keyword and vector sub-queries, merge them into a
+bounded candidate pool, and optionally re-score that pool with a small language
+model before returning hits. ARIEL's non-reranked path instead asks qmd only
+for its lexical BM25 ranking, gets the dense Nomic ranking from ARIEL's existing
+PostgreSQL semantic search, and applies equal-weight RRF itself. This diagram
+shows qmd's combined-query path used when ARIEL reranking is enabled:
 
 .. figure:: /_static/screenshots/qmd_query_pipeline_light.png
    :class: only-light

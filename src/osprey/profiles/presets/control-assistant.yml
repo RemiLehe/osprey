@@ -637,9 +637,11 @@ config:
   ariel.search_modules.hybrid.enabled: true
   # qmd's LLM reranker: an LLM reviews every candidate, so it dominates query
   # latency. One key for both surfaces, the agent's hybrid_search tool and the
-  # ARIEL panel; each can override it per call or per session.
+  # ARIEL panel. A request may turn an enabled reranker off; false here is a
+  # hard deployment disable and removes the panel toggle.
   ariel.search_modules.hybrid.settings.rerank: true
-  # Candidates the reranker considers. Lowering it trades recall for latency.
+  # Candidates each qmd-BM25/Nomic RRF lane (and the optional reranker) considers.
+  # Lowering it trades recall for latency.
   ariel.search_modules.hybrid.settings.candidate_limit: 40
   # Enhancement modules, run during ingestion.
   #

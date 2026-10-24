@@ -151,12 +151,13 @@ Search modules are leaf-level functions that execute a single search strategy ag
 
       **Module:** ``search/qmd.py``
 
-      Hybrid keyword-plus-semantic search, answered by the **qmd search sidecar** --- a separate container that indexes a markdown mirror of the logbook and returns one merged ranking. Best when a question mixes specific terms with a described situation, or when keyword search returned too little.
+      Hybrid keyword-plus-semantic search. On the fast path qmd supplies a BM25 ranking from its markdown mirror, ARIEL's existing Nomic/pgvector search supplies the dense ranking, and ARIEL combines their positions with equal-weight reciprocal-rank fusion (RRF, ``k=60``). Best when a question mixes specific terms with a described situation, or when keyword search returned too little.
 
-      Unlike the other two modes, ``hybrid`` does not search PostgreSQL. It needs two things running together:
+      The fast RRF path searches both qmd and PostgreSQL. It needs three things running together:
 
       1. the ``services.qmd`` sidecar (see :ref:`qmd-search-sidecar`), and
-      2. the ``qmd_export`` :ref:`enhancement module <Enhancement Pipeline>`, which writes the markdown mirror the sidecar indexes.
+      2. the ``qmd_export`` :ref:`enhancement module <Enhancement Pipeline>`, which writes the markdown mirror the sidecar indexes; and
+      3. the same configured embedding model and populated pgvector table used by ``semantic`` search.
 
       Either one alone is useless: an export with no sidecar indexes nothing, and a sidecar with no export searches an empty corpus. The shipped ``control-assistant`` template enables both, together with the sidecar itself. A web-terminal tier or app deploys no sidecar of its own and reaches the hosting deployment's through ``services.qmd.port`` instead — a key the build copies from the hosting deployment's render into every tier and app, so nothing pins it by hand — and ``osprey build`` refuses a render that keeps ``hybrid`` on with no sidecar to dial (:doc:`../build-profiles`).
 
@@ -196,13 +197,13 @@ Search modules are leaf-level functions that execute a single search strategy ag
 
       An LLM reviews every candidate before the results come back, which is what makes reranking the dominant term: its cost is dominated by the candidate pool and grows far more slowly than the corpus does, so no logbook is small enough to outrun it. Both surfaces ship with the quality path on.
 
-      **One key, both surfaces.** ``search_modules.hybrid.settings.rerank`` governs the agent-facing ``hybrid_search`` tool *and* the web interface's search panel --- and ``candidate_limit`` likewise. There is no separate panel key. The two surfaces override it differently. The panel's **Rerank Results** toggle opens showing whatever the deployment configured, and clicking it overrides that value for every search you run from then on, until **Reset** returns the panel to the deployment's value. On the agent side, ``hybrid_search`` takes a ``rerank`` argument that applies to the one call: leave it unset and the tool follows the configured key, pass ``false`` and that one search takes the fast path and nothing else changes. Set the key itself to ``false`` only when you want the fast path for every search, on both surfaces. (The OKF bundle is a different key over a different corpus and defaults the other way; see :doc:`../facility-knowledge/okf-bundle`.)
+      **One key, both surfaces.** ``search_modules.hybrid.settings.rerank`` governs the agent-facing ``hybrid_search`` tool *and* the web interface's search panel --- and ``candidate_limit`` likewise. There is no separate panel key. When the deployment enables reranking, the panel toggle and tool argument may turn it off for an individual search. Setting the deployment key to ``false`` is a hard disable: the panel offers no toggle and a request cannot turn the reranker back on. (The OKF bundle is a different key over a different corpus and defaults the other way; see :doc:`../facility-knowledge/okf-bundle`.)
 
       **What the panel does with a reranked search.** Rather than hold an empty screen for the length of a reranked query, the panel runs it in two phases: it fetches and paints the fast ranking first, under a status line saying the results are being reranked, then replaces them with the reranked ranking under a line saying they were updated. The second response is drawn from a larger candidate pool, so *which* entries come back can change, not only the order they come back in.
 
       **Reranking is never load-bearing.** A reranked query that fails, for any reason, is retried once without the reranker; the results come back normally, carrying a WARNING diagnostic that says the ranking was not improved. The panel keeps the fast results on screen and says so in its status line. Only a failure of that retry is a failed search.
 
-      ``candidate_limit`` is how many candidates the reranker considers. Lowering it trades recall for latency.
+      ``candidate_limit`` is how many qmd-BM25 and Nomic candidates fast RRF considers per lane, and how many candidates the optional reranker considers. Lowering it trades recall for latency.
 
       **Filtering is best-effort.** ``hybrid_search`` ranks the corpus first and applies the date, author and source filters *afterwards*, to the top of that ranking --- not inside the database. A selective filter can therefore return fewer entries than you asked for even when more matching entries exist. Read a short result set as "the ranked window ran out", not as "there is nothing else". When a filter has to be exhaustive, use ``keyword_search`` or ``sql_query``, which filter in the database.
 
