@@ -296,9 +296,7 @@ class TestDescriptor:
         assert by_name["candidate_limit"].default == 12
 
     def test_rrf_hides_the_rerank_toggle(self):
-        by_name = {
-            p.name: p for p in get_parameter_descriptors(make_config({"strategy": "rrf"}))
-        }
+        by_name = {p.name: p for p in get_parameter_descriptors(make_config({"strategy": "rrf"}))}
         assert "rerank" not in by_name
 
     def test_malformed_config_falls_back_instead_of_raising(self):
@@ -360,7 +358,10 @@ class TestSettings:
         assert settings.rerank is False
 
     def test_config_selects_rrf(self):
-        assert HybridSearchSettings.from_ariel_config(make_config({"strategy": "rrf"})).strategy == "rrf"
+        assert (
+            HybridSearchSettings.from_ariel_config(make_config({"strategy": "rrf"})).strategy
+            == "rrf"
+        )
 
     @pytest.mark.parametrize("bad", [None, "RRF", "other", 1])
     def test_invalid_strategy_is_refused(self, bad):
