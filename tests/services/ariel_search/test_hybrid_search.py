@@ -276,7 +276,7 @@ class TestDescriptor:
         assert descriptor.name == "hybrid_search"
         assert descriptor.execute is hybrid_search
         assert descriptor.format_result is format_qmd_result
-        assert descriptor.needs_embedder is True
+        assert descriptor.needs_embedder is False
         assert "query" in descriptor.args_schema.model_fields
 
     def test_parameter_descriptors_expose_both_knobs(self):
@@ -460,6 +460,43 @@ class TestQueryKnobs:
         )
         assert [call["rerank"] for call in client.calls] == [False]
         assert [call["search_types"] for call in client.calls] == [("lex",)]
+
+    @pytest.mark.asyncio
+    async def test_qmd_strategy_never_resolves_the_embedder(self, monkeypatch):
+        """A broken semantic provider cannot reach the default qmd strategy."""
+        from osprey.services.ariel_search.search import semantic
+
+        def broken(_config: ARIELConfig) -> Any:
+            raise AssertionError("qmd strategy resolved the semantic provider")
+
+        monkeypatch.setattr(semantic, "semantic_provider_class", broken)
+        client = StubClient([make_hit("1")])
+
+        results = await hybrid_search(
+            "beam",
+            SemanticRepository([make_entry("1")], []),
+            make_semantic_config(),
+            client=client,
+        )
+
+        assert [entry["entry_id"] for entry, _, _ in results] == ["1"]
+
+    @pytest.mark.asyncio
+    async def test_rrf_resolves_the_configured_embedder_when_none_is_passed(self, monkeypatch):
+        from osprey.services.ariel_search.search import semantic
+
+        resolved: list[ARIELConfig] = []
+
+        def provider_class(config: ARIELConfig) -> Any:
+            resolved.append(config)
+            return StubEmbedder
+
+        monkeypatch.setattr(semantic, "semantic_provider_class", provider_class)
+        config = make_semantic_config({"strategy": "rrf"})
+
+        await hybrid_search("beam", SemanticRepository([], []), config, client=StubClient([]))
+
+        assert resolved == [config]
 
     @pytest.mark.asyncio
     async def test_query_is_scoped_to_the_ariel_collection(self):

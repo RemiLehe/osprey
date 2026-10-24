@@ -325,9 +325,9 @@ async def hybrid_search(
         query: Natural-language or keyword query.
         repository: ARIEL database repository, used to hydrate hits.
         config: ARIEL configuration, read for the module's query knobs.
-        embedder: Provider used by ARIEL's existing semantic search. The search
-            service injects it; direct callers may omit it and let this module
-            resolve the configured provider class.
+        embedder: Provider used by ARIEL's existing semantic search, for the
+            ``rrf`` strategy only. When omitted, the ``rrf`` path resolves the
+            configured provider class; the ``qmd`` strategy never touches it.
         max_results: Maximum text-lane entries to return (default: 10).
             Image-only entries are counted separately, at most
             ``ceil(max_results / 3)`` of them.
@@ -1278,7 +1278,9 @@ def get_tool_descriptor() -> SearchToolDescriptor:
         args_schema=HybridSearchInput,
         execute=hybrid_search,
         format_result=format_qmd_result,
-        needs_embedder=True,
+        # Only the rrf strategy embeds, and it resolves its own provider, so the
+        # default qmd strategy depends on the sidecar alone.
+        needs_embedder=False,
         accepts_expansion=True,
         accepts_include_images=True,
     )
