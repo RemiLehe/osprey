@@ -1902,220 +1902,446 @@ html[data-ui-mode="simple"] .filter-input {
 
 /* ================================================================
    Graph Explore
-   The graph paradigm's explorer: the panel chrome that frames the
-   finder (title, store badge, MCP tool chips, truncation caution).
-   The panel body has no max-height and no inner vertical scroller —
-   the page itself scrolls (html,body { overflow: auto } near the top
-   of this file), so a tall body grows the page like every other
-   section instead of trapping the reader in a nested scrollbar. Only
-   overflow-x is handled here. The finder that fills it — facet rail,
-   results table, device card — is the section below.
-   ================================================================ */
+   The graph paradigm's explorer, laid out like the fleet's other
+   panels: a full-height frame with a toolbar, the active filters,
+   and three panes — the facet rail, the results, and the device
+   inspector — divided by the shared .osprey-splitter (base.css).
+   Every surface with verbs has a right-click menu (base.css
+   .osprey-context-menu); the table's columns move and resize
+   (base.css .col-resize, design-system js/table-columns.js).
 
-.graph-panel {
-  background: var(--bg-panel);
-  border: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-md);
-  margin-top: var(--cf-space-4);
-}
+   Conventions worth knowing:
 
-/* Title and subtitle stack; the store badge (and anything else the head
-   carries) sits to their right and drops below on a narrow viewport. */
-.graph-panel-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--cf-space-2) var(--cf-space-4);
-  background: var(--bg-elevated);
-  border-bottom: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-md) var(--cf-radius-md) 0 0;
-  padding: var(--cf-space-3) var(--cf-space-4);
-}
-
-.graph-panel-title {
-  flex: 1 1 auto;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: var(--cf-text-base);
-  color: var(--text-primary);
-}
-
-.graph-panel-sub {
-  flex: 1 1 100%;
-  color: var(--text-muted);
-  font-size: var(--cf-text-sm);
-  line-height: 1.5;
-}
-
-.graph-panel-body {
-  padding: var(--cf-space-4);
-  overflow-x: auto;
-}
-
-/* Store badge — same visual family as .db-source-badge, mirrored rather
-   than shared so the graph panel can carry it inside its own head. */
-.graph-store-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cf-space-1);
-  padding: 2px 8px;
-  border-radius: var(--cf-radius-sm);
-  background: var(--bg-secondary);
-  font-size: var(--cf-text-xs);
-  color: var(--text-muted);
-  cursor: default;
-}
-
-.graph-store-badge code {
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-}
-
-/* MCP tool name, as offered next to the legend. */
-.graph-tool-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cf-space-1);
-  padding: 1px 6px;
-  border: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-full);
-  background: var(--bg-secondary);
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-  color: var(--text-accent);
-}
-
-/* Row above the results, shown when the store held more than the query
-   returned: a caution, not an error — the panel below it is still valid. */
-.graph-truncated {
-  display: flex;
-  align-items: center;
-  gap: var(--cf-space-2);
-  margin-bottom: var(--cf-space-3);
-  padding: var(--cf-space-2) var(--cf-space-3);
-  background: var(--cf-warning-tint-08);
-  border: 1px solid var(--cf-warning-tint-30);
-  border-left: 3px solid var(--color-warning);
-  border-radius: var(--cf-radius-sm);
-  color: var(--text-secondary);
-  font-size: var(--cf-text-sm);
-  line-height: 1.4;
-}
-
-/* Simple mode drops dense pipeline chrome, exactly as it does for the
-   .db-source-badge on the file-backed pipelines. */
-html[data-ui-mode="simple"] .graph-store-badge,
-html[data-ui-mode="simple"] .graph-tool-chip {
-  display: none;
-}
-
-/* ================================================================
-   Graph Finder
-   Search-first faceted finder for the graph paradigm's Explore view:
-   a fixed-width facet rail beside a results table, with an optional
-   device detail card above the results. Conventions worth knowing:
-
-   - Colour is tokens only. Every value below resolves through
-     tokens.css, which defines each one in :root and in all seven
-     [data-theme] blocks, so the finder themes with everything else
-     and needs no per-theme override of its own.
-   - Class-tree depth arrives as a `data-depth` attribute on the facet
-     item, which the enumerated rules below map to a `--depth` integer
-     that drives the indent. The renderer sets no inline style, so the
-     indent geometry lives here alone. Flat facets carry no attribute
-     and fall back to 0, sitting flush with the facet's own padding.
+   - Colour, type, radius and timing are fleet tokens only, so the
+     finder themes with every other panel and needs no per-theme
+     override of its own.
+   - The frame fills the viewport between the page chrome and the
+     corpus strip; each pane scrolls on its own. --cf-graph-chrome is
+     everything above and below it, and the embedded and Simple
+     variants change only that.
+   - Class-tree depth arrives as `data-depth` on the facet item,
+     mapped below to a `--depth` integer that drives the indent. The
+     renderer sets no inline style, so the indent geometry lives here.
    - The narrow-viewport rules are at the END of this section, not in
      the shared breakpoint block far above. Media queries add no
      specificity, so a rule up there would lose on source order to the
      base rules below and silently do nothing.
    ================================================================ */
 
-/* --- Layout -------------------------------------------------------- */
+/* --- Frame ---------------------------------------------------------- */
 
-/* Rail beside results. minmax(0, 1fr) rather than 1fr so the results
-   column may shrink below its table's intrinsic width — without it the
-   table's nowrap cells would push the grid wider than the panel. */
+.graph-explorer {
+  --cf-graph-chrome: calc(48px + var(--cf-strip-h) + 2 * var(--space-4));
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--cf-graph-chrome));
+  min-height: 420px;
+}
+
+body.embedded .graph-explorer {
+  --cf-graph-chrome: calc(var(--cf-strip-h) + 2 * var(--space-4));
+}
+
+html[data-ui-mode="simple"] .graph-explorer {
+  --cf-graph-chrome: calc(48px + 2 * var(--space-4));
+}
+
+html[data-ui-mode="simple"] body.embedded .graph-explorer {
+  --cf-graph-chrome: calc(2 * var(--space-4));
+}
+
+/* The frame replaces the view's fade-in target, so the panes do not
+   slide on every pipeline switch. */
+.explore-content-graph {
+  animation: none;
+}
+
+.graph-explorer-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-height: 0;
+}
+
+/* --- Toolbar -------------------------------------------------------- */
+
+.cf-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+
+/* Embedded outside Simple, the hub's tile bar carries the search box and
+   the ⋯ menu (header contribution), so the in-body toolbar steps aside.
+   Simple collapses the tile bar, so there the toolbar stays. */
+html:not([data-ui-mode="simple"]) body.embedded .cf-toolbar {
+  display: none;
+}
+
+/* The search pill: the hub's own filter-box idiom, one size up. */
+.cf-search {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 1 440px;
+  min-width: 160px;
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: text;
+  transition: border-color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+
+.cf-search:hover,
+.cf-search:focus-within {
+  border-color: var(--border-accent);
+  background: var(--bg-elevated);
+}
+
+.cf-search svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  color: var(--text-muted);
+}
+
+.cf-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  outline: none;
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+  color: var(--text-primary);
+}
+
+.cf-search input::placeholder {
+  color: var(--text-muted);
+}
+
+.cf-search kbd {
+  padding: 1px var(--space-1);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-xs);
+  font-family: var(--font-display);
+  font-size: var(--text-2xs);
+  line-height: var(--leading-none);
+  color: var(--text-muted);
+}
+
+.cf-search:focus-within kbd {
+  visibility: hidden;
+}
+
+.finder-count {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  white-space: nowrap;
+}
+
+.finder-count strong {
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+.cf-spacer {
+  flex: 1;
+}
+
+/* Segmented control: the hub's contrib-nav idiom. */
+.cf-seg {
+  display: inline-flex;
+  gap: 2px;
+  height: 28px;
+  padding: 2px;
+  box-sizing: border-box;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.cf-seg button,
+.cf-iconbtn {
+  appearance: none;
+  padding: 0 var(--space-2);
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  line-height: var(--leading-none);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.cf-seg button {
+  border-radius: var(--radius-xs);
+}
+
+.cf-seg button[aria-pressed="true"],
+.cf-seg button:hover {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+}
+
+.cf-iconbtn {
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-lg);
+}
+
+.cf-iconbtn:hover,
+.cf-iconbtn:focus-visible {
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  outline: none;
+}
+
+/* --- Active filters ------------------------------------------------- */
+
+/* Reserve the row's height so adding the first chip does not shift the
+   panes down. */
+.active-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 22px;
+}
+
+.active-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 1px var(--space-2);
+  border: 1px solid var(--accent-tint-30);
+  border-radius: var(--radius-full);
+  background: var(--accent-tint-12);
+  color: var(--text-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  cursor: pointer;
+  transition: background var(--duration-instant) ease;
+}
+
+.active-filter:hover {
+  background: var(--accent-tint-20);
+}
+
+/* The chip's dismiss glyph — muted so the filter's own name leads. */
+.active-filter span {
+  color: var(--text-muted);
+}
+
+.clear-all-filters {
+  padding: 0 var(--space-1);
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.clear-all-filters:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+/* Row above the results, shown when the store held more than the query
+   returned: a caution, not an error — the panes below it stay valid. */
+.graph-truncated {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--cf-warning-tint-08);
+  border: 1px solid var(--cf-warning-tint-30);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
+}
+
+/* --- Panes ---------------------------------------------------------- */
+
 .finder-layout {
-  display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: var(--cf-space-4);
-  margin-top: var(--cf-space-4);
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* The splitter's 5px track is the gutter between panes. */
+.finder-layout > .osprey-splitter {
+  margin: 0 var(--space-1);
+}
+
+.finder-layout > [hidden] {
+  display: none;
 }
 
 .facet-rail {
   display: flex;
+  flex: 0 0 236px;
   flex-direction: column;
-  gap: var(--cf-space-3);
+  gap: var(--space-2);
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
-/* --- Facets -------------------------------------------------------- */
+.finder-results {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.finder-table {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.finder-inspector {
+  display: flex;
+  flex: 0 0 340px;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* --- Facets --------------------------------------------------------- */
 
 .facet {
+  flex-shrink: 0;
   background: var(--bg-panel);
   border: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-md);
+  border-radius: var(--radius-md);
   overflow: hidden;
 }
 
 .facet-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--cf-space-2);
-  padding: var(--cf-space-1) var(--cf-space-3);
+  gap: var(--space-1);
+  padding-right: var(--space-2);
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--neutral-tint-10);
-  color: var(--text-secondary);
-  font-size: var(--cf-text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
-/* The rail is the one place a nested scroller is right: a facet with
-   hundreds of values must not push the results table off the page. */
+.facet.collapsed .facet-head {
+  border-bottom-color: transparent;
+}
+
+/* The heading is the fold toggle; the count and its ✕ sit beside it. */
+.facet-toggle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-1) var(--space-2);
+  border: 0;
+  background: none;
+  color: var(--text-secondary);
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.facet-toggle:hover {
+  color: var(--text-primary);
+}
+
+.facet-toggle .tw {
+  width: 10px;
+  color: var(--text-muted);
+  transition: transform var(--duration-fast) ease;
+}
+
+.facet.collapsed .facet-toggle .tw {
+  transform: rotate(-90deg);
+}
+
+.facet-active {
+  color: var(--text-accent);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
+}
+
+.facet-clear {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-none);
+  cursor: pointer;
+}
+
+.facet-clear:hover {
+  color: var(--text-primary);
+}
+
+/* The rail is the one place a nested scroller is right inside a pane: a
+   facet with hundreds of values must not push the next facet out of reach. */
 .facet-body {
-  max-height: 260px;
+  max-height: 240px;
   overflow-y: auto;
-  padding: var(--cf-space-1) 0;
+  padding: var(--space-1) 0;
+}
+
+.facet.collapsed .facet-body {
+  display: none;
 }
 
 /* A facet value is a <button>, so the UA's border, background, centred
-   text and shrunk font are all reset before the row is styled.
-
-   Tree depth arrives as `data-depth`, mapped to a `--depth` integer just
-   below so the indent formula lives here rather than in the renderer. A
-   flat facet carries no attribute and the fallback of 0 leaves it flush. */
+   text and shrunk font are all reset before the row is styled. */
 .facet-item {
   display: flex;
   width: 100%;
   align-items: center;
-  gap: var(--cf-space-1);
-  padding: 2px var(--cf-space-3);
-  padding-left: calc(var(--cf-space-3) + var(--depth, 0) * 14px);
+  gap: var(--space-1);
+  padding: 2px var(--space-3);
+  padding-left: calc(var(--space-3) + var(--depth, 0) * 14px);
   border: 0;
   border-left: 3px solid transparent;
   background: none;
   color: inherit;
   font-family: inherit;
-  font-size: var(--cf-text-sm);
+  font-size: var(--text-lg);
   text-align: left;
   cursor: pointer;
-  transition: background var(--transition-fast);
+  transition: background var(--duration-instant) ease;
 }
 
 /* One step per level. CSS cannot read an attribute as a number, so depth
    is mapped by an explicit ramp — but the taxonomy comes from the server
    and its depth is data-dependent, so the ramp cannot be the only rule.
 
-   The catch-all below comes first and claims the deepest step. Every
-   exact match after it has equal specificity and so wins on order, which
-   leaves any depth past the end of the ramp clamped at the last step
-   rather than falling back to flush. A node too deep to indent further
-   still reads as nested, just no longer as *how* nested — the honest
-   failure for a rail only 240px wide, where step 12 already spends 180px
-   on indentation. */
+   The catch-all comes first and claims the deepest step. Every exact
+   match after it has equal specificity and so wins on order, which leaves
+   any depth past the end of the ramp clamped at the last step rather than
+   falling back to flush. */
 .facet-item[data-depth] { --depth: 12; }
 
 .facet-item[data-depth="0"] { --depth: 0; }
@@ -2139,6 +2365,10 @@ html[data-ui-mode="simple"] .graph-tool-chip {
 .facet-item.on {
   background: var(--accent-tint-08);
   border-left-color: var(--color-accent-secondary);
+}
+
+.facet-item.on .k {
+  color: var(--text-primary);
 }
 
 /* A value no current result carries. Dimmed rather than hidden, so the
@@ -2166,7 +2396,7 @@ html[data-ui-mode="simple"] .graph-tool-chip {
 .facet-item .n {
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
+  font-size: var(--text-base);
 }
 
 /* Fixed gutter for the expand marker. A leaf hides its marker but keeps
@@ -2175,7 +2405,7 @@ html[data-ui-mode="simple"] .graph-tool-chip {
   width: 12px;
   flex-shrink: 0;
   color: var(--text-muted);
-  font-size: var(--cf-text-xs);
+  font-size: var(--text-base);
   text-align: center;
 }
 
@@ -2183,162 +2413,159 @@ html[data-ui-mode="simple"] .graph-tool-chip {
   visibility: hidden;
 }
 
-/* --- Search row and active filters --------------------------------- */
+/* --- Results -------------------------------------------------------- */
 
-.finder-search {
-  display: flex;
-  align-items: center;
-  gap: var(--cf-space-2);
-  margin-bottom: var(--cf-space-3);
-}
-
-/* Same input treatment as .filter-input, on the finder's own row. */
-.finder-search input {
-  flex: 1;
-  min-width: 120px;
-  padding: var(--cf-space-1) var(--cf-space-2);
-  border: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-sm);
-  background: var(--bg-panel);
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-sm);
-}
-
-.finder-search input:focus {
-  border-color: var(--color-accent);
-  outline: none;
-}
-
-.finder-search input::placeholder { color: var(--text-muted); }
-
-.finder-count {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-  white-space: nowrap;
-}
-
-.finder-count strong {
-  color: var(--text-primary);
-  font-weight: 500;
-}
-
-/* Reserve the row's height so adding the first chip does not shift the
-   results table down. */
-.active-filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--cf-space-1);
-  min-height: 22px;
-  margin-bottom: var(--cf-space-2);
-}
-
-.active-filter {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--cf-space-1);
-  padding: 1px 8px;
-  border: 1px solid var(--accent-tint-30);
-  border-radius: var(--cf-radius-full);
-  background: var(--accent-tint-12);
-  color: var(--text-accent);
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-
-.active-filter:hover {
-  background: var(--accent-tint-20);
-}
-
-/* The chip's dismiss glyph — muted so the filter's own name leads. */
-.active-filter span {
-  color: var(--text-muted);
-}
-
-/* --- Results ------------------------------------------------------- */
-
-/* Scroll container for the sticky header to stick against. Capped in vh
-   rather than px so it tracks the viewport on a tall screen. */
+/* The scroll container the sticky header sticks against; it takes every
+   pixel the pane has, and the footer sits below it. */
 .result-wrap {
-  max-height: 62vh;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   border: 1px solid var(--neutral-tint-10);
-  border-radius: var(--cf-radius-md);
+  border-radius: var(--radius-md);
   background: var(--bg-panel);
 }
 
+/* Fixed layout from the <colgroup>: a resize is one width write, and a
+   long value truncates instead of pushing its neighbours aside. The
+   renderer sets the table's min-width to the sum of its columns and
+   leaves the last data column unsized, so it takes the slack. */
 .result-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: var(--cf-text-sm);
+  font-size: var(--text-lg);
 }
 
 .result-table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  padding: var(--cf-space-1) var(--cf-space-2);
+  padding: var(--space-1) var(--space-2);
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--neutral-tint-10);
   color: var(--text-secondary);
-  font-size: var(--cf-text-xs);
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.06em;
   text-align: left;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+/* A data header sorts on click and moves on drag. */
+.result-table th[data-col]:not([data-pinned]) {
+  cursor: grab;
+}
+
+.result-table th[data-col]:not([data-pinned]):hover {
+  color: var(--text-primary);
+}
+
+.result-table th:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.result-table th .th-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+}
+
+.result-table th .sort-mark {
+  color: var(--text-accent);
+  font-size: var(--text-xs);
 }
 
 /* Denser than .data-table: the finder shows many more rows at once, and
    middle alignment keeps the direction pill centred against its row. */
 .result-table td {
-  padding: var(--cf-space-1) var(--cf-space-2);
+  padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--neutral-tint-06);
   vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.result-table tr:hover td {
+.graph-explorer.compact .result-table td {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+.graph-explorer.compact .result-table {
+  font-size: var(--text-md);
+}
+
+.result-table tbody tr {
+  outline: none;
+}
+
+.result-table tbody tr:hover td {
   background: var(--surface-hover);
 }
 
-.result-table tr.checked td {
+.result-table tbody tr.checked td {
   background: var(--accent-tint-06);
 }
 
-.result-table th.chk,
+/* The device the inspector shows: tinted, with the accent edge the
+   inspector itself carries, so the eye can travel between them. */
+.result-table tbody tr.open td {
+  background: var(--accent-tint-10);
+}
+
+.result-table tbody tr.open td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-accent);
+}
+
+/* The keyboard's row. */
+.result-table tbody tr:focus-visible td {
+  box-shadow: inset 0 1px 0 var(--color-accent), inset 0 -1px 0 var(--color-accent);
+}
+
+.result-table tbody tr:focus-visible td:first-child {
+  box-shadow: inset 0 1px 0 var(--color-accent), inset 0 -1px 0 var(--color-accent),
+              inset 2px 0 0 var(--color-accent);
+}
+
 .result-table td.chk {
-  width: 24px;
   padding-right: 0;
 }
 
 .result-table td.pv {
   color: var(--text-primary);
   font-family: var(--font-mono);
-  white-space: nowrap;
 }
 
 .result-table td.dev {
   font-family: var(--font-mono);
-  white-space: nowrap;
 }
 
-/* The device name opens its detail card — a link's affordance without a
+/* The device name opens the inspector — a link's affordance without a
    link's navigation, so it is a button wearing a dotted underline. */
 .result-table td.dev button {
+  max-width: 100%;
+  overflow: hidden;
   padding: 0;
   border: 0;
   background: none;
   color: var(--text-accent);
   font: inherit;
   text-decoration: underline dotted;
+  text-overflow: ellipsis;
   text-underline-offset: 3px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.result-table td.sec {
+.result-table td.sec,
+.result-table td.sys {
   color: var(--text-muted);
   font-family: var(--font-mono);
 }
@@ -2346,28 +2573,19 @@ html[data-ui-mode="simple"] .graph-tool-chip {
 .result-table td.sig {
   color: var(--text-secondary);
   font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-  white-space: nowrap;
+  font-size: var(--text-base);
 }
 
-/* max-width: 0 with a percentage width is the table-layout idiom that
-   lets a cell actually ellipsis instead of growing to fit its text. */
 .result-table td.desc {
-  width: 40%;
-  max-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--text-muted);
 }
 
 .result-table td.act {
   text-align: right;
-  white-space: nowrap;
 }
 
 .result-empty {
-  padding: var(--cf-space-6);
+  padding: var(--space-6);
   color: var(--text-muted);
   text-align: center;
 }
@@ -2377,11 +2595,11 @@ html[data-ui-mode="simple"] .graph-tool-chip {
 .dir {
   display: inline-block;
   min-width: 18px;
-  padding: 0 var(--cf-space-1);
-  border-radius: var(--cf-radius-sm);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-  font-weight: 600;
+  font-size: var(--text-base);
+  font-weight: var(--weight-semibold);
   text-align: center;
 }
 
@@ -2407,21 +2625,22 @@ html[data-ui-mode="simple"] .graph-tool-chip {
   color: var(--text-muted);
 }
 
-/* Per-row copy affordance: hidden until the row is hovered so it does
-   not add a column of noise, but revealed on keyboard focus too, and by
-   .copy-btn-static where the card shows it unconditionally. */
+/* Per-row copy affordance: hidden until the row is hovered or focused so
+   it does not add a column of noise, and shown unconditionally by
+   .copy-btn-static where the inspector carries it. */
 .copy-btn {
-  padding: 0 var(--cf-space-1);
+  padding: 0 var(--space-1);
   border: 0;
   background: none;
   color: var(--text-muted);
   font: inherit;
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--transition-fast);
+  transition: opacity var(--duration-instant) ease;
 }
 
 tr:hover .copy-btn,
+tr:focus-within .copy-btn,
 .copy-btn:focus-visible,
 .copy-btn-static {
   opacity: 1;
@@ -2435,11 +2654,11 @@ tr:hover .copy-btn,
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--cf-space-3);
-  padding: var(--cf-space-2) 0;
+  gap: var(--space-3);
+  padding: var(--space-2) 0 0;
   color: var(--text-muted);
   font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
+  font-size: var(--text-base);
 }
 
 /* Pushes the selection actions to the trailing edge, leaving the count
@@ -2450,7 +2669,7 @@ tr:hover .copy-btn,
 
 .result-foot strong {
   color: var(--text-primary);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 
 .result-counts {
@@ -2460,7 +2679,7 @@ tr:hover .copy-btn,
 .pager {
   display: inline-flex;
   align-items: center;
-  gap: var(--cf-space-1);
+  gap: var(--space-1);
 }
 
 /* "3 / 47" between the two arrows. A min-width holds the arrows still as
@@ -2471,137 +2690,223 @@ tr:hover .copy-btn,
   white-space: nowrap;
 }
 
-/* Always in the DOM, so it stays quiet at zero and only the count itself
-   carries weight once a selection exists. */
 .sel-count {
   white-space: nowrap;
 }
 
-/* --- Device detail card -------------------------------------------- */
+/* --- Device inspector ---------------------------------------------- */
 
-/* Accent left edge marks it as the drill-in that the results table
-   opened, rather than another section of the page. */
+/* Accent left edge marks it as the drill-in the results opened, rather
+   than another pane of the page. It fills its pane and scrolls inside. */
 .device-card {
-  margin-bottom: var(--cf-space-3);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
   border: 1px solid var(--accent-tint-30);
   border-left: 3px solid var(--color-accent);
-  border-radius: var(--cf-radius-md);
+  border-radius: var(--radius-md);
   background: var(--bg-panel);
+  overflow: hidden;
 }
 
 /* Same card, failed lookup: the accent edge goes to the error colour so
    the card reads as a miss at a glance, while keeping the ✕ and the head
    in place so it is dismissed exactly the way a hit is. */
 .device-card-error {
+  flex: 0 0 auto;
   border-color: var(--error-tint-30);
   border-left-color: var(--color-error);
 }
 
 .device-card-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--cf-space-2) var(--cf-space-3);
-  padding: var(--cf-space-2) var(--cf-space-3);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
   background: var(--bg-elevated);
   border-bottom: 1px solid var(--neutral-tint-10);
 }
 
 .device-card-head .name {
+  min-width: 0;
+  overflow: hidden;
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.device-card-head .meta {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
-}
-
-.device-card-head .close {
+.card-actions {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
   margin-left: auto;
-  padding: 0;
+}
+
+.card-btn {
+  padding: 2px var(--space-1);
   border: 0;
+  border-radius: var(--radius-xs);
   background: none;
   color: var(--text-muted);
   font: inherit;
+  line-height: var(--leading-none);
   cursor: pointer;
 }
 
-.device-card-head .close:hover {
+.card-btn:hover:not(:disabled),
+.card-btn:focus-visible {
   color: var(--text-primary);
+  background: var(--neutral-tint-10);
+  outline: none;
+}
+
+.card-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .device-card-body {
-  padding: var(--cf-space-2) var(--cf-space-3);
-  font-size: var(--cf-text-sm);
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--text-lg);
+}
+
+.device-card-body .meta {
+  margin-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
+  line-height: var(--leading-snug);
 }
 
 .device-card-body .fam {
-  margin-bottom: var(--cf-space-2);
+  margin-bottom: var(--space-2);
   color: var(--text-secondary);
 }
 
 /* A device the graph knows but that carries no channels. A plain muted
    line, not a warning — an empty device is a fact, not a fault. */
 .card-empty {
-  padding: var(--cf-space-2) 0;
+  padding: var(--space-2) 0;
   color: var(--text-muted);
-  font-size: var(--cf-text-sm);
+  font-size: var(--text-lg);
 }
 
 /* The server's own explanation of a failed device lookup. */
 .card-error {
-  padding: var(--cf-space-2) 0;
+  padding: var(--space-2) 0;
   color: var(--color-error);
-  font-size: var(--cf-text-sm);
-  line-height: 1.4;
+  font-size: var(--text-lg);
+  line-height: var(--leading-snug);
 }
 
-/* One row per signal on the device. Top-aligned because the trailing
-   description column is the only one that may wrap. */
+/* One row per binding. Top-aligned because the address and description
+   wrap in a narrow inspector. */
 .sig-table {
   width: 100%;
   border-collapse: collapse;
 }
 
 .sig-table td {
-  padding: 3px var(--cf-space-1);
+  padding: 3px var(--space-1);
   border-top: 1px solid var(--neutral-tint-06);
   vertical-align: top;
+}
+
+.sig-table tr:hover td {
+  background: var(--surface-hover);
 }
 
 .sig-table td.sig {
   color: var(--text-accent);
   font-family: var(--font-mono);
-  font-size: var(--cf-text-xs);
+  font-size: var(--text-base);
   white-space: nowrap;
 }
 
 .sig-table td.pv {
   font-family: var(--font-mono);
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .sig-table td.sub {
   color: var(--text-muted);
-  font-size: var(--cf-text-xs);
+  font-size: var(--text-base);
+}
+
+/* --- Corpus strip provenance --------------------------------------- */
+
+/* The store the strip's numbers came from, beside them, and the tools the
+   assistant reads it with behind the shared info tip. */
+.corpus-prov {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.corpus-prov:empty {
+  display: none;
+}
+
+.corpus-prov .graph-store-badge code {
+  display: inline-block;
+  max-width: 40ch;
+  overflow: hidden;
+  vertical-align: bottom;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+}
+
+.corpus-prov .osprey-tip {
+  white-space: normal;
+}
+
+.corpus-prov .graph-tool-chip {
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
 }
 
 /* --- Narrow viewport ----------------------------------------------- */
 
-/* Must stay after the base rules above: a media query adds no
-   specificity, so the same selector placed in the shared breakpoint
-   block earlier in this file would lose on source order and do nothing.
-
-   The 240px rail has nowhere to go beside the table, so it stacks above
-   it as a wrapping row of facets. They shorten to stay skimmable rather
-   than burying the results under a screen of filters, and the results
-   drop their own scroller so the page scrolls once instead of twice. */
+/* Must stay after the base rules above (see the section note). The
+   panes stack: the rail becomes a wrapping row of short facets above the
+   results, the inspector drops below them, the splitters go, and the
+   frame gives up its fixed height so the page scrolls once. The
+   splitter's inline sizes are overridden, not removed: it is parked by
+   its own isEnabled gate and resumes when the viewport widens. */
 @media (max-width: 768px) {
+  .graph-explorer {
+    height: auto;
+  }
+
+  .cf-seg,
+  .finder-count,
+  .corpus-prov {
+    display: none;
+  }
+
   .finder-layout {
-    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .finder-layout > .osprey-splitter {
+    display: none;
+  }
+
+  .facet-rail,
+  .finder-inspector {
+    flex: 0 0 auto !important;
+    max-width: none !important;
   }
 
   .facet-rail {
@@ -2618,6 +2923,6 @@ tr:hover .copy-btn,
   }
 
   .result-wrap {
-    max-height: none;
+    max-height: 70vh;
   }
 }
