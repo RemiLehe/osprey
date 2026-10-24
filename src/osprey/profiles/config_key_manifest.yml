@@ -3986,7 +3986,7 @@ render_contexts:
     panels_on: web.panels.channel-finder.enabled
     default_panel_set: web.default_panel
     panel_presets_set: web.presets
-  expected_union_size: 392
+  expected_union_size: 393
   note_union_size: >-
     An assertion: the guard derives the union on every run and fails when this
     figure disagrees with it, or when it is missing. It moves whenever the
