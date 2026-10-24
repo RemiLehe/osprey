@@ -35,11 +35,12 @@ would starve the result set, so a filtered query asks the sidecar for
 :data:`OVERFETCH_FACTOR` times as many hits, capped at
 :data:`MAX_FETCH_LIMIT`.
 
-**The fast path uses explicit reciprocal-rank fusion.** qmd supplies only the
-lexical ranking; ARIEL's existing semantic search supplies the Nomic/pgvector
-ranking. This module combines their positions with equal-weight RRF. Keeping
-the merge here makes the result deterministic and testable without qmd's vector
-model or opaque weighted multi-search ordering.
+**The hybrid strategy is explicit.** The compatible ``qmd`` strategy sends both
+lexical and vector sub-queries to the sidecar. The opt-in ``rrf`` strategy asks
+qmd only for BM25, obtains the dense ranking from ARIEL's configured semantic
+provider, and combines their positions with equal-weight RRF. Keeping that merge
+in ARIEL makes it deterministic and testable without qmd's vector model or
+opaque weighted multi-search ordering.
 
 **Reranking is the deployment's choice, not this module's.** qmd's LLM reranker
 reads every candidate, so a reranked query is markedly slower than a plain one,
@@ -49,9 +50,10 @@ surfaces this module serves: the agent-facing tool, whose ``rerank`` argument
 may turn an enabled reranker off for one call, and the search panel, whose
 toggle exists only when the deployment enables reranking. ``false`` is a hard
 deployment disable. The default is qmd's own (``True``), because an agent has no
-interactive budget to blow; a deployment that wants only the fast RRF path sets
-the key to ``false``. Reranking is also not load-bearing for correctness: a
-query whose rerank fails degrades to RRF rather than failing.
+interactive budget to blow. The ``rrf`` strategy is always unreranked, so it
+never loads qmd's reranker model. Reranking is also not load-bearing for
+correctness: a query whose rerank fails degrades to qmd's fast ordering rather
+than failing.
 """
 
 from __future__ import annotations
@@ -109,6 +111,12 @@ DEFAULT_RERANK = True
 #: nothing. Matches qmd's own default; lowering it trades recall for latency.
 DEFAULT_CANDIDATE_LIMIT = 40
 
+#: The existing all-qmd implementation remains the shipped behavior.  RRF is
+#: opt-in because it deliberately replaces qmd's baked-in vector model with
+#: ARIEL's configured semantic provider.
+DEFAULT_STRATEGY = "qmd"
+_HYBRID_STRATEGIES = frozenset(("qmd", "rrf"))
+
 #: Standard reciprocal-rank-fusion constant.  At this value agreement between
 #: the BM25 and Nomic lanes matters more than small score-scale differences
 #: within either backend, while the leading positions still contribute most.
@@ -145,15 +153,20 @@ class HybridSearchSettings:
     """Query knobs read from ``search_modules.hybrid.settings``.
 
     Attributes:
+        strategy: ``qmd`` retains qmd's combined lexical/vector query. ``rrf``
+            combines qmd's lexical BM25 ranking with ARIEL's configured dense
+            ranking using reciprocal-rank fusion.
         rerank: Whether qmd reranks candidates with its LLM reranker. Defaults
-            to :data:`DEFAULT_RERANK`.
-        candidate_limit: Candidate depth for each qmd-BM25/Nomic lane on the
-            fast RRF path and qmd's ``candidateLimit`` on the reranked path.
+            to :data:`DEFAULT_RERANK`; ignored by the lightweight ``rrf``
+            strategy.
+        candidate_limit: Candidate depth for each lane in ``rrf`` and qmd's
+            ``candidateLimit`` in ``qmd``.
             Defaults to :data:`DEFAULT_CANDIDATE_LIMIT`.
         collection: qmd collection the ARIEL mirror is indexed under. Not a
             config key — see :data:`ARIEL_COLLECTION`.
     """
 
+    strategy: str = DEFAULT_STRATEGY
     rerank: bool = DEFAULT_RERANK
     candidate_limit: int | None = DEFAULT_CANDIDATE_LIMIT
     collection: str = ARIEL_COLLECTION
@@ -175,13 +188,21 @@ class HybridSearchSettings:
             The resolved settings.
 
         Raises:
-            ValueError: If ``rerank`` is present but not a boolean, or
+            ValueError: If ``strategy`` is not supported, ``rerank`` is present
+                but not a boolean, or
                 ``candidate_limit`` is present but not a positive integer.
         """
         module = config.search_modules.get("hybrid") if config is not None else None
         settings = module.settings if module is not None else None
         if not isinstance(settings, dict):
             return cls()
+
+        strategy = settings.get("strategy", cls.strategy)
+        if strategy not in _HYBRID_STRATEGIES:
+            choices = ", ".join(sorted(_HYBRID_STRATEGIES))
+            raise ValueError(
+                f"{_SETTINGS_PREFIX}.strategy must be one of {choices}, got {strategy!r}"
+            )
 
         rerank = settings.get("rerank", cls.rerank)
         if not isinstance(rerank, bool):
@@ -198,7 +219,7 @@ class HybridSearchSettings:
                 f"got {candidate_limit!r}"
             )
 
-        return cls(rerank=rerank, candidate_limit=candidate_limit)
+        return cls(strategy=strategy, rerank=rerank, candidate_limit=candidate_limit)
 
 
 @dataclass(frozen=True)
@@ -285,7 +306,7 @@ async def hybrid_search(
     include_images: bool | None = None,
     **kwargs: Any,
 ) -> list[tuple[EnhancedLogbookEntry, float, list[str]]] | ModuleOutput:
-    """Execute qmd BM25 + ARIEL/Nomic semantic search with RRF.
+    """Execute the configured qmd or RRF hybrid strategy.
 
     The sidecar ranks; Postgres answers. Hits are decoded back to ``entry_id``s,
     hydrated by primary key, filtered, and returned in qmd's ranking order.
@@ -314,12 +335,13 @@ async def hybrid_search(
         end_date: Keep entries at or before this time.
         author: Keep entries whose author contains this text, case-insensitively.
         source_system: Keep entries from this source system (exact match).
-        rerank: Per-query override when ``settings.rerank`` enables the
+        rerank: Per-query override when the ``qmd`` strategy's
+            ``settings.rerank`` enables the
             reranker. A deployment setting of ``false`` is a hard disable and
-            cannot be overridden by a request.
+            cannot be overridden by a request. The ``rrf`` strategy never uses
+            the qmd reranker.
         candidate_limit: Per-query override of ``settings.candidate_limit``;
-            the fast RRF path fetches this many candidates per lane. ``None``
-            uses config.
+            RRF fetches this many candidates per lane. ``None`` uses config.
         client: Client for the sidecar. Defaults to the process-wide client
             built from the project's ``services.qmd`` block; tests pass a stub.
         query_expansion: Resolved vocabulary expansion for this query, passed by
@@ -336,12 +358,12 @@ async def hybrid_search(
     Returns:
         Without `query_expansion`: a list of ``(entry, score, snippets)`` tuples
         in descending relevance order — the bare-list contract every direct
-        caller relies on today, returned unchanged. ``score`` is qmd's 0-1
-        relevance, which is an **ordering signal, not a calibrated
-        probability** — do not threshold it. When a picture match survived
-        fusion, ``score`` is instead the fused reciprocal-rank score divided by
-        the best one, so the top entry scores 1.0; it orders this result only
-        and is no more comparable across queries than qmd's. ``snippets``
+        caller relies on today, returned unchanged. ``score`` is an **ordering
+        signal, not a calibrated probability** — do not threshold it. It is
+        qmd's score for the ``qmd`` strategy and the normalised RRF score for
+        the ``rrf`` strategy. A picture match likewise changes it to the fused
+        reciprocal-rank score divided by the best one, so the top entry scores
+        1.0. ``snippets``
         carries qmd's line-numbered, match-centered excerpt, or is empty when
         the sidecar supplied none or the entry matched only through a picture.
 
@@ -378,7 +400,8 @@ async def hybrid_search(
         # an untyped crash is reported to the agent as a broken sidecar, and it
         # goes looking at a service that is perfectly healthy. Message verbatim.
         raise SearchConfigurationError(str(exc)) from exc
-    effective_rerank = settings.rerank and (rerank is None or bool(rerank))
+    rrf = settings.strategy == "rrf"
+    effective_rerank = False if rrf else settings.rerank and (rerank is None or bool(rerank))
     effective_candidates = settings.candidate_limit if candidate_limit is None else candidate_limit
 
     filters = _Filters(start_date, end_date, author, source_system)
@@ -410,6 +433,7 @@ async def hybrid_search(
             fetch_limit=fetch_limit,
             max_results=max_results,
             rerank=effective_rerank,
+            rrf=rrf,
             candidate_limit=effective_candidates,
             client=client,
             embedder=embedder,
@@ -463,6 +487,7 @@ async def _ranked_search(
     fetch_limit: int,
     max_results: int,
     rerank: bool,
+    rrf: bool,
     candidate_limit: int | None,
     client: QMDClient | None,
     embedder: BaseProvider | None,
@@ -505,13 +530,13 @@ async def _ranked_search(
 
     logger.info(
         f"hybrid_search: query={query!r}, max_results={max_results}, fetch_limit={fetch_limit}, "
-        f"rerank={rerank}, candidate_limit={candidate_limit}, "
+        f"strategy={settings.strategy}, rerank={rerank}, candidate_limit={candidate_limit}, "
         f"picture_lane={img_task is not None}"
     )
 
     lane_limit = max(fetch_limit, candidate_limit or fetch_limit)
     semantic_task: asyncio.Task[list[_RankedTextHit]] | None = None
-    if not rerank:
+    if rrf:
         semantic_task = asyncio.create_task(
             _semantic_hits(
                 query,
@@ -530,6 +555,7 @@ async def _ranked_search(
             query_expansion.flattened_text if query_expansion else query,
             limit=fetch_limit,
             rerank=rerank,
+            lexical_only=rrf,
             candidate_limit=candidate_limit,
         )
     except BaseException:
@@ -537,21 +563,6 @@ async def _ranked_search(
             semantic_task.cancel()
             await asyncio.gather(semantic_task, return_exceptions=True)
         raise
-    if rerank and diagnostics:
-        # The only text diagnostic produced here is a reranker failure. Complete
-        # the same qmd-BM25 + Nomic RRF path an explicitly fast request uses.
-        semantic_task = asyncio.create_task(
-            _semantic_hits(
-                query,
-                repository,
-                config,
-                embedder,
-                limit=lane_limit,
-                filters=filters,
-                query_expansion=query_expansion,
-            )
-        )
-
     image_hits = await img_task if img_task is not None else None
     if img_task is not None and image_hits is None:
         diagnostics = (
@@ -762,6 +773,7 @@ async def _fetch_hits(
     *,
     limit: int,
     rerank: bool,
+    lexical_only: bool,
     candidate_limit: int | None,
 ) -> tuple[list[QMDSearchResult], tuple[SearchDiagnostic, ...]]:
     """Ask the sidecar to rank, degrading to the unreranked ordering if it must.
@@ -776,8 +788,9 @@ async def _fetch_hits(
         text: The query text as the sidecar should see it.
         limit: How many hits to ask for.
         rerank: Whether to run the reranker at all.
-        candidate_limit: Candidate depth for the fast BM25 lane and qmd's
-            ``candidateLimit`` for a reranked query.
+        lexical_only: Ask qmd for BM25 results only, for ARIEL's RRF strategy.
+        candidate_limit: Candidate depth for the RRF BM25 lane and qmd's
+            ``candidateLimit`` for a qmd query.
 
     Returns:
         The hits, and the diagnostics to carry back with them — one WARNING
@@ -809,7 +822,11 @@ async def _fetch_hits(
 
     if not rerank:
         lane_limit = max(limit, candidate_limit or limit)
-        return await run(rerank=False, lexical_only=True, query_limit=lane_limit), ()
+        return await run(
+            rerank=False,
+            lexical_only=lexical_only,
+            query_limit=lane_limit if lexical_only else None,
+        ), ()
 
     try:
         return await run(rerank=True), ()
@@ -824,8 +841,7 @@ async def _fetch_hits(
             f"hybrid_search: reranked query failed ({type(exc).__name__}: {exc}); "
             "retrying without the reranker"
         )
-        lane_limit = max(limit, candidate_limit or limit)
-        return await run(rerank=False, lexical_only=True, query_limit=lane_limit), (
+        return await run(rerank=False), (
             SearchDiagnostic(
                 level=DiagnosticLevel.WARNING,
                 source="hybrid",
@@ -1197,8 +1213,8 @@ def get_parameter_descriptors(config: ARIELConfig | None = None) -> list[Paramet
             name="candidate_limit",
             label="Candidate Limit",
             description=(
-                "How many qmd-BM25 and Nomic candidates RRF considers per lane. "
-                "Lowering it trades recall for latency."
+                "How many candidates each RRF lane considers, or qmd's candidate "
+                "pool for its native strategy. Lowering it trades recall for latency."
             ),
             param_type="int",
             default=settings.candidate_limit,
@@ -1211,7 +1227,7 @@ def get_parameter_descriptors(config: ARIELConfig | None = None) -> list[Paramet
     # A deployment setting of false is a hard disable, not merely the panel's
     # initial toggle position. Omitting the descriptor keeps the panel on its
     # one-phase RRF path and gives operators no control that can only no-op.
-    if settings.rerank:
+    if settings.strategy == "qmd" and settings.rerank:
         descriptors.insert(
             0,
             ParameterDescriptor(

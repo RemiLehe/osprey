@@ -61,8 +61,10 @@ async def hybrid_search(
 ) -> str:
     """Search the ARIEL logbook using hybrid keyword + semantic ranking.
 
-    Runs qmd BM25 over the mirrored logbook and Nomic vector search over ARIEL's
-    PostgreSQL embeddings, then fuses their ranks. Best when a question mixes
+    Uses the deployment's configured hybrid strategy. The lightweight ``rrf``
+    strategy combines qmd BM25 over the mirrored logbook with the configured
+    semantic search over ARIEL's PostgreSQL embeddings. The compatible ``qmd``
+    strategy leaves both retrieval lanes inside qmd. Best when a question mixes
     specific terms with a described situation, or when keyword_search returned
     too little.
 
@@ -87,11 +89,11 @@ async def hybrid_search(
         exclude_entry_ids: Entry IDs to exclude from results (for iterative search).
         expand_query: Apply the facility vocabulary (shorthand/acronym expansion).
             None = the configured default; see capabilities().vocabulary.expand_by_default.
-        rerank: Reorder the merged ranking with the qmd sidecar's LLM reranker.
-            None = the configured default. A deployment configured with
-            rerank=false has disabled the model and cannot be overridden by a
-            request. Where enabled, reranking can improve which entries come
-            back and how they are ordered but is much slower.
+        rerank: Reorder a ``qmd``-strategy ranking with the sidecar's LLM
+            reranker. None = the configured default. A deployment configured
+            with rerank=false — or with the lightweight ``rrf`` strategy — has
+            disabled the model and cannot be overridden by a request. Where
+            enabled, reranking can improve ordering but is much slower.
         include_images: Also match entries by what their attached pictures show.
             None = on when capabilities().attachments.picture_search.
 

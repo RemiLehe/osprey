@@ -2329,6 +2329,14 @@ keys:
   ariel.search_modules.hybrid.settings:
     evidence: '_SETTINGS_PREFIX = "search_modules\.hybrid\.settings"'
     default: {}
+  ariel.search_modules.hybrid.settings.strategy:
+    evidence: '_SETTINGS_PREFIX\}\.strategy must be one of'
+    note: >-
+      `qmd` retains the shipped all-qmd lexical/vector hybrid behavior. `rrf`
+      requests qmd's lexical BM25 ranking plus ARIEL's configured dense ranking,
+      then combines their positions with reciprocal-rank fusion. The latter is
+      lightweight and never invokes qmd's reranker.
+    default: qmd
   ariel.search_modules.hybrid.settings.rerank:
     evidence: '_SETTINGS_PREFIX\}\.rerank must be a boolean'
     note: >-
@@ -2347,8 +2355,8 @@ keys:
     evidence: '_SETTINGS_PREFIX\}\.candidate_limit must be a positive integer'
     note: >-
       Shipped as `40`, matching DEFAULT_CANDIDATE_LIMIT and qmd's own
-      `candidateLimit`. It is the candidate depth for each qmd-BM25 and Nomic
-      lane in fast RRF and the candidate pool for the optional reranker. One key for both surfaces,
+      `candidateLimit`. It is the candidate depth for each BM25 and dense
+      lane in RRF and the candidate pool for the optional qmd reranker. One key for both surfaces,
       like `rerank` above; lowering it trades recall for speed.
     default: 40
   ariel.enhancement_modules:

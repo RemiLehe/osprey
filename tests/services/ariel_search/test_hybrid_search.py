@@ -31,6 +31,7 @@ from osprey.services.ariel_search.search.qmd import (
     ARIEL_COLLECTION,
     DEFAULT_CANDIDATE_LIMIT,
     DEFAULT_RERANK,
+    DEFAULT_STRATEGY,
     MAX_FETCH_LIMIT,
     OVERFETCH_FACTOR,
     RRF_K,
@@ -294,6 +295,12 @@ class TestDescriptor:
         assert "rerank" not in by_name
         assert by_name["candidate_limit"].default == 12
 
+    def test_rrf_hides_the_rerank_toggle(self):
+        by_name = {
+            p.name: p for p in get_parameter_descriptors(make_config({"strategy": "rrf"}))
+        }
+        assert "rerank" not in by_name
+
     def test_malformed_config_falls_back_instead_of_raising(self):
         """Describing the module survives a key the query path would refuse."""
         by_name = {p.name: p for p in get_parameter_descriptors(make_config({"rerank": "junk"}))}
@@ -328,16 +335,19 @@ class TestDescriptor:
 class TestSettings:
     """``search_modules.hybrid.settings`` resolution."""
 
-    def test_shipped_defaults_are_rerank_on_and_forty_candidates(self):
+    def test_shipped_defaults_keep_qmd_reranked_and_forty_candidates(self):
         """Pinned here because the descriptors no longer pin them by construction."""
         assert DEFAULT_RERANK is True
         assert DEFAULT_CANDIDATE_LIMIT == 40
+        assert DEFAULT_STRATEGY == "qmd"
+        assert HybridSearchSettings().strategy == "qmd"
         assert HybridSearchSettings().rerank is True
         assert HybridSearchSettings().candidate_limit == 40
 
     def test_defaults_when_unconfigured(self):
         settings = HybridSearchSettings.from_ariel_config(make_config())
         assert settings.rerank is DEFAULT_RERANK is True
+        assert settings.strategy == DEFAULT_STRATEGY
         assert settings.candidate_limit == DEFAULT_CANDIDATE_LIMIT
         assert settings.collection == ARIEL_COLLECTION
 
@@ -348,6 +358,14 @@ class TestSettings:
     def test_config_turns_reranking_off(self):
         settings = HybridSearchSettings.from_ariel_config(make_config({"rerank": False}))
         assert settings.rerank is False
+
+    def test_config_selects_rrf(self):
+        assert HybridSearchSettings.from_ariel_config(make_config({"strategy": "rrf"})).strategy == "rrf"
+
+    @pytest.mark.parametrize("bad", [None, "RRF", "other", 1])
+    def test_invalid_strategy_is_refused(self, bad):
+        with pytest.raises(ValueError, match="search_modules.hybrid.settings.strategy"):
+            HybridSearchSettings.from_ariel_config(make_config({"strategy": bad}))
 
     def test_config_sets_candidate_limit(self):
         settings = HybridSearchSettings.from_ariel_config(make_config({"candidate_limit": 12}))
@@ -388,8 +406,8 @@ class TestQueryKnobs:
         )
         assert client.calls[0]["rerank"] is False
         assert client.calls[0]["candidate_limit"] == 12
-        assert [call["search_types"] for call in client.calls] == [("lex",)]
-        assert [call["limit"] for call in client.calls] == [12]
+        assert [call["search_types"] for call in client.calls] == [("lex", "vec")]
+        assert [call["limit"] for call in client.calls] == [10]
 
     @pytest.mark.asyncio
     async def test_default_is_reranked(self):
@@ -425,6 +443,20 @@ class TestQueryKnobs:
             rerank=True,
         )
 
+        assert [call["rerank"] for call in client.calls] == [False]
+        assert [call["search_types"] for call in client.calls] == [("lex", "vec")]
+
+    @pytest.mark.asyncio
+    async def test_rrf_never_calls_the_qmd_reranker(self):
+        client = StubClient([])
+        await hybrid_search(
+            "beam",
+            SemanticRepository([], []),
+            make_semantic_config({"strategy": "rrf"}),
+            StubEmbedder(),
+            client=client,
+            rerank=True,
+        )
         assert [call["rerank"] for call in client.calls] == [False]
         assert [call["search_types"] for call in client.calls] == [("lex",)]
 
@@ -1067,7 +1099,7 @@ class TestReciprocalRankFusion:
         results = await hybrid_search(
             "beam problem",
             repository,
-            make_semantic_config({"rerank": False, "candidate_limit": 40}),
+            make_semantic_config({"strategy": "rrf", "candidate_limit": 40}),
             StubEmbedder(),
             client=client,
         )
@@ -1096,7 +1128,7 @@ class TestRerankFallback:
         assert [call["rerank"] for call in client.calls] == [True, False]
         assert [call["search_types"] for call in client.calls] == [
             ("lex", "vec"),
-            ("lex",),
+            ("lex", "vec"),
         ]
         ((entry, _, _),) = result.entries
         assert entry["entry_id"] == "1"
@@ -1115,13 +1147,13 @@ class TestRerankFallback:
             candidate_limit=11,
         )
 
-        first, lexical = client.calls
+        first, fallback = client.calls
         shared = {"collection", "text", "candidate_limit"}
-        assert {key: first[key] for key in shared} == {key: lexical[key] for key in shared}
+        assert {key: first[key] for key in shared} == {key: fallback[key] for key in shared}
         assert first["limit"] == 7
-        assert lexical["limit"] == 11
+        assert fallback["limit"] == 7
         assert first["search_types"] == ("lex", "vec")
-        assert lexical["search_types"] == ("lex",)
+        assert fallback["search_types"] == ("lex", "vec")
 
     @pytest.mark.asyncio
     async def test_the_degraded_ranking_is_reported_as_a_warning(self):

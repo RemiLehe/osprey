@@ -15,10 +15,10 @@ per corpus. Two parts of OSPREY use them:
 
 qmd can fan one query out into keyword and vector sub-queries, merge them into a
 bounded candidate pool, and optionally re-score that pool with a small language
-model before returning hits. ARIEL's non-reranked path instead asks qmd only
-for its lexical BM25 ranking, gets the dense Nomic ranking from ARIEL's existing
-PostgreSQL semantic search, and applies equal-weight RRF itself. This diagram
-shows qmd's combined-query path used when ARIEL reranking is enabled:
+model before returning hits. That is ARIEL's default ``qmd`` hybrid strategy.
+The optional ``rrf`` strategy instead asks qmd only for lexical BM25, gets the
+dense ranking from ARIEL's configured PostgreSQL semantic search, and applies
+equal-weight RRF itself. This diagram shows qmd's combined-query path:
 
 .. figure:: /_static/screenshots/qmd_query_pipeline_light.png
    :class: only-light
