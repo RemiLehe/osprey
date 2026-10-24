@@ -461,11 +461,12 @@ class _Comparison:
                 else:
                     self._compare(actual[key], expected[key], sub)
         elif _is_name_list(actual) and _is_name_list(expected):
+            own, replaced = _own_entries(path, actual, expected)
             for member in expected:
-                if member not in actual:
+                if member not in actual and member not in replaced:
                     self._missing_member(path, member)
             for member in actual:
-                if member not in expected:
+                if member not in expected and member not in own:
                     self._extra_member(path, member)
         elif actual != expected:
             self.findings.append(
@@ -699,6 +700,29 @@ def _emitted_version(profile_path: Path) -> str | None:
 
 def _mapping(value: Any) -> dict[str, Any]:
     return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _own_entries(
+    path: tuple[str, ...], actual: list[str], expected: list[str]
+) -> tuple[set[str], set[str]]:
+    """The deployment's own entries in a top-level list, and the preset entries they replace.
+
+    A path entry (``skills/beam-check``) names a file the repo ships, which no
+    preset can carry, so it is the repo writing for itself rather than drift. A
+    path that names the deployment's copy of a library artifact the preset
+    selects (``rules/facility`` for ``facility``) stands in for that entry.
+
+    Returns:
+        ``(own, replaced)``: the path entries of *actual*, and the bare entries
+        of *expected* one of them replaces.
+    """
+    from .profile_conventions import library_entry_shadow, split_convention_selection
+
+    if len(path) != 1:
+        return set(), set()
+    own = set(split_convention_selection(path[0], actual)[1])
+    replaced = {member for member in expected if library_entry_shadow(path[0], member) in own}
+    return own, replaced
 
 
 def _is_name_list(value: Any) -> bool:

@@ -1849,9 +1849,7 @@ def _materialize_profile_directory(
         if FACILITY_RULE_NAME in resolved.rules:
             rules_dir = target / FACILITY_RULE_DIR
             fresh = not rules_dir.exists()
-            moved = ensure_profile_facility_rule(
-                target, build_dir=None, enabled_agents=resolved.agents
-            )
+            moved = ensure_profile_facility_rule(target, enabled_agents=resolved.agents)
             if moved:
                 logger.debug("  %s", moved)
                 if fresh:
@@ -1891,6 +1889,12 @@ def _materialize_profile_directory(
                 )
         if seeded:
             logger.debug("  Seeded: %s", ", ".join(f"{name}/" for name in seeded))
+
+        # A profile or app that selects the library facility rule by its bare
+        # name selects the copy seeded above instead, by its path.
+        from .init_revalidate import name_shipped_shadows
+
+        name_shipped_shadows(target)
 
         # The round-trip runs last because it validates `data:` against the tree
         # that must already be on disk. Only the host profile is resolved: a

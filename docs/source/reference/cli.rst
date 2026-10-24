@@ -133,7 +133,10 @@ the ones you added are kept. Never touches ``.env``, ``.git``, ``var/``,
 ``--revalidate [--preset NAME]`` — Bring an existing deployment repository to
 this OSPREY in place: the current profile vocabulary, every config key the
 profile leaves to its preset (from ``--preset NAME``, or the preset the profile
-records), and the provider entries OSPREY ships, keeping the ones you added.
+records), the provider entries OSPREY ships, keeping the ones you added, and
+the repo's own skills, agents, rules, output styles and hooks named by path in
+``profile.yml`` and each app (a bare entry the repo ships a file for becomes
+its path), so every render keeps what it carried.
 Your deployment's own selections — the roster, the shared apps, the default
 tier, role tiers, the landing groups — are left for you and named in the
 output. Prints a diff to review and commit.
