@@ -1280,7 +1280,8 @@ def _reject_shorthand_flags(command: Callable) -> Callable:
     is_flag=True,
     help="Bring an existing deployment repo to this OSPREY in place — the current "
     "profile vocabulary, every config key the profile leaves to its preset, the "
-    "provider entries OSPREY ships, its own skills/agents/rules/output styles/hooks "
+    "provider entries OSPREY ships that providers.yml lacks (its values are kept), its "
+    "own skills/agents/rules/output styles/hooks "
     "named where they render today — and print the diff. Only on a repo that holds "
     "profile.yml; with --preset, fills from that preset; not with --force or --reset.",
 )

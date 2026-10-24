@@ -26,8 +26,10 @@ in place, with the round-trip writer so every comment the operator kept survives
    key is dropped. The deployment's own selections (the keys the manifest
    marks ``deployment-data`` or ``data-map``) are never filled: the output
    names each one left out.
-5. ``providers.yml`` is refreshed: the entries OSPREY ships come back fresh,
-   and every entry the operator added is kept.
+5. ``providers.yml`` is completed, never rewritten: every value it states is
+   kept, an edited entry OSPREY ships included, and only the entries OSPREY
+   ships that it lacks, and the keys an existing one lacks, are added.
+   ``osprey validate`` reports each remaining difference as drift.
 6. ``provenance:`` is restamped with the preset, its hash and the catalog's
    hash, and ``requires_osprey_version`` at the schema floor, so a release
    that predates the vocabulary refuses the rewritten repo.
@@ -2234,7 +2236,7 @@ def _plan_providers(root: Path) -> Any:
     from .profile_cmd import _plan_provider_catalog
 
     try:
-        return _plan_provider_catalog(root)
+        return _plan_provider_catalog(root, keep_values=True)
     except click.UsageError as e:
         raise BuildProfileError(e.message) from e
 

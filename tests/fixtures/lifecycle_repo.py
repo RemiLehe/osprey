@@ -1475,7 +1475,7 @@ requires_osprey_version: '>=2026.10.0'
 # preset that no `# DEVIATION: <why>` comment above the line claims (tag set
 # by `deviation_marker:`). This profile is the source of truth either way.
 # `providers_hash` is the same record for providers.yml beside this file;
-# `osprey init --revalidate` refreshes the packaged entries in it.
+# `osprey init --revalidate` adds the packaged entries and keys it lacks.
 provenance:
   preset: control-assistant
   preset_hash: @PRESET_HASH:control-assistant@
