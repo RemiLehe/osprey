@@ -330,6 +330,9 @@ export function attachColumnGestures(region, gestures) {
     }
     const th = e.target.closest('thead th[data-col]:not([data-pinned])');
     if (th instanceof HTMLElement && !e.target.closest('input, button, a')) {
+      // No text selection from a header press: the press may become a drag,
+      // and the click that sorts still fires without the default.
+      e.preventDefault();
       drag = { kind: 'press', key: th.dataset.col ?? '', x0: e.clientX, th, target: null, before: true, ghost: null, line: null };
     }
   }, { signal });
@@ -343,6 +346,9 @@ export function attachColumnGestures(region, gestures) {
     if (drag.kind === 'press') {
       if (Math.abs(e.clientX - drag.x0) < DRAG_THRESHOLD) return;
       drag.kind = 'move';
+      // A press on header text may already have begun a text selection that
+      // would otherwise sweep across the rows for the rest of the drag.
+      doc.getSelection?.()?.removeAllRanges();
       drag.th.setPointerCapture?.(e.pointerId);
       drag.th.classList.add('col-drag-source');
       doc.body.classList.add('col-dragging');

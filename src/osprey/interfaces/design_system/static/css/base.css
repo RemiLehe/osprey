@@ -343,14 +343,15 @@ html, body {
 }
 
 /* Table columns — the visual half of js/table-columns.js. A header carries a
-   `.col-resize` grip on its right edge (the header cell must be positioned);
+   `.col-resize` grip inside its right edge (the header cell must be positioned;
+   the grip never overhangs it, since a clipping header would swallow the overhang);
    dragging a header shows a floating label and a drop line between columns.
    The table's own look stays with its interface. */
 .col-resize {
   position: absolute;
   top: 0;
-  right: -4px;
-  width: 9px;
+  right: 0;
+  width: 8px;
   height: 100%;
   cursor: col-resize;
   z-index: 2;
@@ -359,7 +360,7 @@ html, body {
 .col-resize::after {
   content: "";
   position: absolute;
-  left: 4px;
+  right: 0;
   top: 25%;
   width: 1px;
   height: 50%;
@@ -369,7 +370,6 @@ html, body {
 th:hover > .col-resize::after,
 .col-resize:hover::after,
 body.col-resizing .col-resize::after {
-  left: 3px;
   width: 2px;
   background: var(--color-accent);
 }
