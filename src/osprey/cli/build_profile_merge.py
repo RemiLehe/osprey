@@ -19,7 +19,7 @@ from typing import Any
 from osprey_connectors.errors import BuildProfileError
 from osprey_connectors.workspace import LAYER_DIR_KINDS, PROFILE_FILENAME, RETIRED_LAYER_DIRS
 
-from .build_profile_document import _read_profile_document
+from .build_profile_document import RENDER_KEYS, _read_profile_document
 from .build_profile_presets import (
     PRESET_ONLY_KEYS,
     _load_preset_raw,
@@ -791,9 +791,6 @@ _APP_OWNED_KEYS: tuple[str, ...] = (
     "channel_finder_mode",
 )
 
-#: Image-shaping keys an app file may set; absent, the render has none.
-_APP_RENDER_KEYS: tuple[str, ...] = ("extra_mounts", "seed_base", "image")
-
 _CLAUDE_CODE_SECTION = "claude_code"
 _CONTROL_SYSTEM_SECTION = "control_system"
 _CONNECTOR_TABLE_KEY = "connector"
@@ -1070,7 +1067,7 @@ def compose_app_render(host: dict[str, Any], app: dict[str, Any], app_rel: str) 
     """Compose an app render from its host deployment and its complete app file.
 
     The app file owns what the agent is: the keys in :data:`_APP_OWNED_KEYS`
-    and :data:`_APP_RENDER_KEYS` come from it alone. Its ``config:`` sits over
+    and :data:`~osprey.cli.build_profile_document.RENDER_KEYS` come from it alone. Its ``config:`` sits over
     the host's facts — the host's config minus every ``claude_code.servers``
     switch (the app states its own server set), minus every
     ``claude_code.hooks`` declaration on an event other than ``PreToolUse``,
@@ -1111,9 +1108,9 @@ def compose_app_render(host: dict[str, Any], app: dict[str, Any], app_rel: str) 
     render = {
         key: value
         for key, value in host.items()
-        if key not in _APP_OWNED_KEYS and key not in _APP_RENDER_KEYS and key != "config"
+        if key not in _APP_OWNED_KEYS and key not in RENDER_KEYS and key != "config"
     }
-    for key in (*_APP_OWNED_KEYS, *_APP_RENDER_KEYS):
+    for key in (*_APP_OWNED_KEYS, *sorted(RENDER_KEYS)):
         if key in app:
             render[key] = app[key]
 
@@ -1199,15 +1196,20 @@ def render_document(
             edit the deployment.
     """
     if legacy:
-        return merge_layer_delta(
+        rendered = merge_layer_delta(
             host_resolved,
             _strip_attachment(layer),
             artifacts=artifacts,
             shadow_candidates=shadow_candidates,
         )
-    if kind is ProfileKind.APP:
-        return compose_app_render(host_resolved, layer, layer_rel)
-    return _deep_merge(host_resolved, layer)
+    elif kind is ProfileKind.APP:
+        rendered = compose_app_render(host_resolved, layer, layer_rel)
+    else:
+        rendered = _deep_merge(host_resolved, layer)
+    # The per-render keys are the card's, read from the file by the render
+    # projection; no profile field holds them, so the document they are parsed
+    # into does not carry them.
+    return {key: value for key, value in rendered.items() if key not in RENDER_KEYS}
 
 
 @dataclass(frozen=True)

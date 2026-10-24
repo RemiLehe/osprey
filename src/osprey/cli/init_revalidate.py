@@ -75,9 +75,9 @@ from osprey_connectors.workspace import (
 )
 
 from .build_profile_document import (
-    _LAYER_FILE_KNOBS,
     _WEB_TERMINALS,
     _WT_LABEL,
+    RENDER_KEYS,
     RETIRED_CATALOG_KEY,
     _catalog_knobs,
     _refuse_mixed_roster,
@@ -2096,7 +2096,7 @@ def revalidate_repo(root: Path, *, preset: str | None = None) -> RevalidateResul
             for knob, value in fields.items():
                 if knob == "build_profile":
                     continue
-                if knob in _LAYER_FILE_KNOBS:
+                if knob in RENDER_KEYS:
                     target = knobs if rel == PROFILE_FILENAME else overlay_knobs
                     target.setdefault(name, {})[knob] = value
                 elif knob == "landing_group":
