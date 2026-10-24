@@ -192,13 +192,25 @@ class RevalidateResult:
 
 
 def _last_slot(container: Any, key: Any) -> tuple[dict, Any, int]:
-    """The comment slot that trails ``container[key]``'s whole subtree."""
+    """The comment slot that trails ``container[key]``'s whole subtree.
+
+    A flow collection (``access: [roster]``) is one line, so it is a leaf here:
+    its own items' slots sit inside its brackets, and a comment block handed to
+    one would be written there.
+    """
     value = container[key]
+    if _is_flow(value):
+        return container.ca.items, key, 0 if isinstance(container, CommentedSeq) else 2
     if isinstance(value, CommentedMap) and len(value):
         return _last_slot(value, list(value.keys())[-1])
     if isinstance(value, CommentedSeq) and len(value):
         return _last_slot(value, len(value) - 1)
     return container.ca.items, key, 0 if isinstance(container, CommentedSeq) else 2
+
+
+def _is_flow(value: Any) -> bool:
+    """Whether *value* is a collection written in flow style (``[a, b]``, ``{k: v}``)."""
+    return isinstance(value, (CommentedMap, CommentedSeq)) and bool(value.fa.flow_style())
 
 
 def _get_tail(slot: tuple[dict, Any, int]) -> tuple[str, int]:
