@@ -16,7 +16,7 @@ import pytest
 
 from osprey.cli.build_environment import _create_project_venv
 from osprey.cli.build_profile import BuildProfile, EnvironmentConfig
-from osprey.deployment.members import WORKSPACE_MEMBERS
+from osprey.deployment.members import WORKSPACE_MEMBERS, member_requirements
 
 
 def _profile(
@@ -194,8 +194,8 @@ class TestWorkspaceMembersFromSource:
         _create_project_venv(tmp_path, _profile(osprey_install=str(root), packages=["pyepics"]))
 
         install_cmd = calls[1]
-        members = [str(root / "packages" / name) for name in WORKSPACE_MEMBERS]
-        assert len(members) == 2
+        members = [str(root / "packages" / directory) for directory in WORKSPACE_MEMBERS]
+        assert len(members) == 3
         assert install_cmd[-(2 + len(members)) :] == [str(root), "pyepics", *members]
 
     @pytest.mark.usefixtures("without_uv")
@@ -210,7 +210,7 @@ class TestWorkspaceMembersFromSource:
 
     @classmethod
     def _vcs_members(cls) -> list[str]:
-        return [f"{m} @ {cls._VCS_URL}#subdirectory=packages/{m}" for m in WORKSPACE_MEMBERS]
+        return member_requirements(cls._VCS_URL)
 
     @pytest.mark.usefixtures("without_uv")
     @pytest.mark.parametrize(
@@ -243,7 +243,7 @@ class TestWorkspaceMembersFromSource:
         _create_project_venv(tmp_path, _profile(osprey_install=spec))
 
         install_cmd = calls[1]
-        members = [str(root / "packages" / name) for name in WORKSPACE_MEMBERS]
+        members = [str(root / "packages" / directory) for directory in WORKSPACE_MEMBERS]
         assert install_cmd[-(1 + len(members)) :] == [spec, *members]
 
     @pytest.mark.usefixtures("without_uv", "calls")

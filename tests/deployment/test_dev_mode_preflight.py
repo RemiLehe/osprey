@@ -210,11 +210,19 @@ class TestStagingNeverSilentlyFallsBack:
         assert "disk on fire" in str(exc.value)
 
     @staticmethod
-    def _add_members(checkout: Path, members) -> None:
-        for member in members:
-            root = checkout / "packages" / member
+    def _add_members(checkout: Path, directories) -> None:
+        for directory in directories:
+            root = checkout / "packages" / directory
             root.mkdir(parents=True)
-            (root / "pyproject.toml").write_text(f"[project]\nname='{member}'\n")
+            dist = WORKSPACE_MEMBERS[directory]
+            (root / "pyproject.toml").write_text(f"[project]\nname='{dist}'\n")
+
+    @staticmethod
+    def _wheel_stem(checkout: Path, root) -> str:
+        """The wheel stem a build of *root* yields: its distribution, not its directory."""
+        if Path(root) == checkout:
+            return "osprey_framework"
+        return WORKSPACE_MEMBERS[Path(root).name].replace("-", "_")
 
     def test_every_workspace_member_wheel_is_staged(self, editable_checkout, monkeypatch, tmp_path):
         """The framework requires each member, so each member's wheel ships beside it."""
@@ -226,8 +234,7 @@ class TestStagingNeverSilentlyFallsBack:
         built: list[Path] = []
 
         def _fake_build(root):
-            name = "osprey_framework" if root == editable_checkout else root.name.replace("-", "_")
-            wheel = cache / f"{name}-0.0.0-py3-none-any.whl"
+            wheel = cache / f"{self._wheel_stem(editable_checkout, root)}-0.0.0-py3-none-any.whl"
             wheel.write_bytes(b"")
             built.append(Path(root))
             return wheel
@@ -245,13 +252,14 @@ class TestStagingNeverSilentlyFallsBack:
         ]
         staged = sorted(p.name.split("-", 1)[0] for p in ctx.glob("*.whl"))
         assert staged == sorted(
-            ["osprey_framework"] + [m.replace("-", "_") for m in WORKSPACE_MEMBERS]
+            ["osprey_framework"] + [d.replace("-", "_") for d in WORKSPACE_MEMBERS.values()]
         )
 
-    @pytest.mark.parametrize("missing", WORKSPACE_MEMBERS)
+    @pytest.mark.parametrize("missing", list(WORKSPACE_MEMBERS))
     def test_missing_workspace_member_is_named(
         self, editable_checkout, monkeypatch, tmp_path, missing
     ):
+        """The message names the distribution; the remedy names the directory."""
         import osprey.deployment.wheel_build as wb
 
         self._add_members(editable_checkout, [m for m in WORKSPACE_MEMBERS if m != missing])
@@ -259,7 +267,7 @@ class TestStagingNeverSilentlyFallsBack:
         cache.mkdir()
 
         def _fake_build(root):
-            wheel = cache / f"{Path(root).name.replace('-', '_')}-0.0.0-py3-none-any.whl"
+            wheel = cache / f"{self._wheel_stem(editable_checkout, root)}-0.0.0-py3-none-any.whl"
             wheel.write_bytes(b"")
             return wheel
 
@@ -270,8 +278,7 @@ class TestStagingNeverSilentlyFallsBack:
         with pytest.raises(DevModeUnavailableError) as exc:
             _copy_local_framework_for_override(str(ctx))
 
-        assert missing in str(exc.value)
-        assert "workspace member" in str(exc.value)
+        assert f"the {WORKSPACE_MEMBERS[missing]} workspace member" in str(exc.value)
         assert f"packages/{missing}" in exc.value.remedy
         assert not list(ctx.glob("*.whl")), "no wheel may be staged when a member is missing"
 
@@ -283,12 +290,12 @@ class TestMemberWheelsSatisfyTheFramework:
 
     @classmethod
     def _add_members(cls, checkout: Path) -> None:
-        for member in WORKSPACE_MEMBERS:
-            root = checkout / "packages" / member
+        for directory, dist in WORKSPACE_MEMBERS.items():
+            root = checkout / "packages" / directory
             root.mkdir(parents=True)
-            glob = cls.CONNECTORS_GLOB if member == "osprey-connectors" else "v[0-9]*"
+            glob = cls.CONNECTORS_GLOB if dist == "osprey-connectors" else "v[0-9]*"
             (root / "pyproject.toml").write_text(
-                f"[project]\nname='{member}'\n"
+                f"[project]\nname='{dist}'\n"
                 "[tool.hatch.version]\n"
                 f'raw-options = {{ git_describe_command = "git describe --match {glob}" }}\n'
             )
@@ -312,13 +319,18 @@ class TestMemberWheelsSatisfyTheFramework:
         self._add_members(editable_checkout)
         cache = tmp_path / "cache"
         cache.mkdir()
-        versions = {"osprey-connectors": connectors_version, "pyaml-cs-osprey": "2026.9.0b3.post7"}
+        versions = {
+            "osprey-connectors": connectors_version,
+            "pyaml-cs-osprey": "2026.9.0b3.post7",
+            "osprey-dock-engine": "2026.9.0b3.post7",
+        }
 
         def _fake_build(root):
             if root == editable_checkout:
-                requires = [f"{m}>=2026.6.2" for m in WORKSPACE_MEMBERS] + ["aiohttp"]
+                requires = [f"{d}>=2026.6.2" for d in WORKSPACE_MEMBERS.values()] + ["aiohttp"]
                 return self._wheel(cache, "osprey-framework", "2026.9.0b3.post7", requires)
-            return self._wheel(cache, root.name, versions[root.name], [])
+            dist = WORKSPACE_MEMBERS[root.name]
+            return self._wheel(cache, dist, versions[dist], [])
 
         monkeypatch.setattr(wb, "_build_dev_wheel_cached", _fake_build)
         ctx = tmp_path / "ctx"

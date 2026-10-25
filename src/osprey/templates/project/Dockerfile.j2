@@ -236,9 +236,9 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && pip install "uv==0.12.21" \
     && { case "$OSPREY_PIP_SPEC" in \
            git+*) : \
-{%- for member in workspace_members %}
-                  ; uv pip install "{{ member }} @ ${OSPREY_PIP_SPEC}#subdirectory=packages/{{ member }}" \
-                  || { echo "ERROR: could not install {{ member }} from the git spec" >&2; exit 1; } \
+{%- for dist, requirement in workspace_members %}
+                  ; uv pip install "{{ requirement }}" \
+                  || { echo "ERROR: could not install {{ dist }} from the git spec" >&2; exit 1; } \
 {%- endfor %}
                   ;; \
          esac; } \

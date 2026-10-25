@@ -30,7 +30,7 @@ import pytest
 from click.testing import CliRunner
 
 from osprey.cli.main import cli
-from osprey.deployment.members import WORKSPACE_MEMBERS
+from osprey.deployment.members import WORKSPACE_MEMBERS, member_requirements
 from osprey.port_layout import DEFAULT_PORT_BASE, default_port, layout_ports
 from tests.deployment._cache_mounts import assert_build_caches_mounted
 from tests.deployment._pip_probe import primer_pip_argv
@@ -551,9 +551,7 @@ class TestDockerfileContent:
         assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
         calls = self._install_calls(log)
         members = self._member_installs(calls)
-        assert members == [
-            f"install {m} @ {self._GIT_SPEC}#subdirectory=packages/{m}" for m in WORKSPACE_MEMBERS
-        ], calls
+        assert members == [f"install {line}" for line in member_requirements(self._GIT_SPEC)], calls
         primer = next(i for i, c in enumerate(calls) if c.endswith(f" {self._GIT_SPEC}"))
         assert primer == len(members), f"member pre-installs must precede the primer: {calls}"
 
@@ -587,9 +585,9 @@ class TestDockerfileContent:
         )
         assert result.returncode != 0, f"{result.stdout}\n{result.stderr}"
         calls = self._install_calls(log)
-        first = WORKSPACE_MEMBERS[0]
+        first = next(iter(WORKSPACE_MEMBERS.values()))
         assert self._member_installs(calls) == [
-            f"install {first} @ {self._GIT_SPEC}#subdirectory=packages/{first}"
+            f"install {member_requirements(self._GIT_SPEC)[0]}"
         ], calls
         assert not any(c.endswith(f" {self._GIT_SPEC}") for c in calls), (
             f"the framework primer ran after a member pre-install failed: {calls}"

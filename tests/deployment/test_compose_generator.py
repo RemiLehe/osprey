@@ -3699,6 +3699,7 @@ _FIXTURE_WHEEL_METADATA = (
     "Requires-Dist: aiohttp\n"
     "Requires-Dist: osprey-connectors>=2026.6.2\n"
     "Requires-Dist: pyaml-cs-osprey!=2026.6.2a0,>=2026.6.2\n"
+    "Requires-Dist: osprey-dock-engine>=2026.6.2\n"
     'Requires-Dist: tomli>=2; python_version < "3.11"\n'
     'Requires-Dist: pytest>=8; extra == "dev"\n'
     'Requires-Dist: sphinx; extra == "docs"\n'
@@ -3734,7 +3735,7 @@ def _write_fixture_wheel(path: Path) -> None:
 
 
 def _member_wheel_name(member: str) -> str:
-    """The wheel filename the spy builds for a workspace member."""
+    """The wheel filename the spy builds for a workspace member's distribution."""
     return f"{member.replace('-', '_')}-{_FIXTURE_MEMBER_VERSION}-py3-none-any.whl"
 
 
@@ -3759,7 +3760,8 @@ def _write_fixture_member_wheel(path: Path, member: str) -> None:
 #: Every wheel a --dev staging must drop into a build context: the framework
 #: plus one per workspace member.
 _EXPECTED_STAGED_WHEELS = sorted(
-    ["osprey_framework-0.0.0-py3-none-any.whl"] + [_member_wheel_name(m) for m in WORKSPACE_MEMBERS]
+    ["osprey_framework-0.0.0-py3-none-any.whl"]
+    + [_member_wheel_name(d) for d in WORKSPACE_MEMBERS.values()]
 )
 
 
@@ -3784,12 +3786,13 @@ def spy_wheel_build(monkeypatch: pytest.MonkeyPatch) -> list:
             outdir = cmd[cmd.index("--outdir") + 1]
             # The build cwd says WHICH distribution is being built: the
             # framework builds at the checkout root, each workspace member in
-            # its packages/<member> subdirectory. The parent check matters: a
+            # its packages/<directory> subdirectory, which names the member's
+            # distribution through WORKSPACE_MEMBERS. The parent check matters: a
             # checkout root may itself share a member's basename.
             cwd = Path(str(kwargs.get("cwd", "")))
-            member = cwd.name
-            if cwd.parent.name == "packages" and member in WORKSPACE_MEMBERS:
-                _write_fixture_member_wheel(Path(outdir, _member_wheel_name(member)), member)
+            if cwd.parent.name == "packages" and cwd.name in WORKSPACE_MEMBERS:
+                dist = WORKSPACE_MEMBERS[cwd.name]
+                _write_fixture_member_wheel(Path(outdir, _member_wheel_name(dist)), dist)
             else:
                 _write_fixture_wheel(Path(outdir, "osprey_framework-0.0.0-py3-none-any.whl"))
             return subprocess_module.CompletedProcess(cmd, 0, stdout="", stderr="")
@@ -4177,7 +4180,7 @@ def test_dev_wheel_build_is_reproducible(tmp_path: Path) -> None:
                 pytest.skip("dev wheel build unavailable in this environment")
             staged = {w.name.split("-")[0]: w for w in out_dir.glob("*.whl")}
             assert sorted(staged) == sorted(
-                ["osprey_framework"] + [m.replace("-", "_") for m in WORKSPACE_MEMBERS]
+                ["osprey_framework"] + [d.replace("-", "_") for d in WORKSPACE_MEMBERS.values()]
             )
             wheels.append(staged)
             digests.append(

@@ -51,7 +51,7 @@ from uuid import uuid4
 import click
 
 from osprey.deployment.compose_merge import MERGED_COMPOSE_FILENAME
-from osprey.deployment.members import WORKSPACE_MEMBERS
+from osprey.deployment.members import WORKSPACE_MEMBERS, member_requirements
 from osprey.facility.errors import FacilityBuildError, FacilityBuildWarning
 from osprey.profiles.providers import PROVIDERS_FILENAME, load_provider_catalog
 from osprey.utils.config_writer import (
@@ -4092,8 +4092,15 @@ def _repo_render_context(
         # The workspace members a git+ OSPREY_PIP_SPEC pre-installs from the
         # monorepo's packages/ subdirectories in Dockerfile.j2's deps layer. From
         # the installed framework's constant, since a deployed framework has no
-        # monorepo pyproject.toml to read the workspace from.
-        "workspace_members": list(WORKSPACE_MEMBERS),
+        # monorepo pyproject.toml to read the workspace from. Each entry pairs the
+        # distribution name (for the error line) with its rendered requirement.
+        "workspace_members": list(
+            zip(
+                WORKSPACE_MEMBERS.values(),
+                member_requirements("${OSPREY_PIP_SPEC}"),
+                strict=True,
+            )
+        ),
     }
     if build_profile.provider:
         context["default_provider"] = build_profile.provider
