@@ -8498,6 +8498,12 @@ GATE_CI_STEPS = (
     GateCiStep(FRONTEND_JS_JOB, "Typecheck (tsc --noEmit)", "npm run typecheck"),
     GateCiStep(FRONTEND_JS_JOB, "Lint (eslint)", "npm run lint"),
     GateCiStep(
+        FRONTEND_JS_JOB,
+        "Check the dock-engine bundle is current",
+        "node packages/dock-engine/scripts/build.mjs --check",
+    ),
+    GateCiStep(FRONTEND_JS_JOB, "Run dock-engine tests (vitest)", "npm run test:dock-engine"),
+    GateCiStep(
         DOCS_JOB,
         "Build documentation",
         'uv run{extra} make html SPHINXOPTS="-W --keep-going"',
@@ -10568,8 +10574,14 @@ PYAML_WHEEL_STEP = "Build pyaml-cs-osprey wheel and import-walk it with the fram
 PYAML_WHEEL_GLOBS = (
     "dist/osprey_framework-*.whl",
     "dist/osprey_connectors-*.whl",
+    "dist/osprey_dock_engine-*.whl",
     "dist/pyaml_cs_osprey-*.whl",
 )
+DOCK_ENGINE_COVERAGE_FLAG = "--cov=packages/dock-engine/src/dock_engine"
+DOCK_ENGINE_WHEEL_STEP = "Build osprey-dock-engine wheel and check its package data"
+#: The package data the dock-engine wheel must carry: ``dock_engine._data``
+#: reads both through ``importlib.resources``.
+DOCK_ENGINE_WHEEL_DATA = ("dock_engine/cases/validate/", "dock_engine/manifest.json")
 RELEASE_VERIFY_JOB = "verify-pypi-resolvable"
 RELEASE_SIBLING_DIR = "/tmp/sibling"
 
@@ -10599,6 +10611,24 @@ def test_the_coverage_cell_measures_the_pyaml_member__mutation_drops_the_flag() 
     step["run"] = step["run"].replace(f" {PYAML_COVERAGE_FLAG}", "")
     with pytest.raises(AssertionError, match="does not measure the pyAML member"):
         test_the_coverage_cell_measures_the_pyaml_member(mutated)
+
+
+def test_the_coverage_cell_measures_the_dock_engine_member(workflow: dict[str, Any]) -> None:
+    """The dock-engine member's tests run in the unit lane, so its tree is on
+    the coverage command line beside the other members'."""
+    flags = _coverage_cell_flags(workflow)
+    assert DOCK_ENGINE_COVERAGE_FLAG in flags, (
+        f"the coverage cell does not measure the dock-engine member; COV_ARGS names {flags}"
+    )
+
+
+def test_the_coverage_cell_measures_the_dock_engine_member__mutation_drops_the_flag() -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    step = _find_named_step(mutated, UNIT_TEST_JOB, "Run unit tests")
+    assert DOCK_ENGINE_COVERAGE_FLAG in step["run"], "the flag moved; this mutation is stale"
+    step["run"] = step["run"].replace(f" {DOCK_ENGINE_COVERAGE_FLAG}", "")
+    with pytest.raises(AssertionError, match="does not measure the dock-engine member"):
+        test_the_coverage_cell_measures_the_dock_engine_member(mutated)
 
 
 def _package_step_index(wf: dict[str, Any], step_name: str) -> int:
@@ -10668,6 +10698,63 @@ def test_the_package_job_import_walks_the_pyaml_wheel__mutation_built_before_upl
     walk = steps.pop(_package_step_index(mutated, PYAML_WHEEL_STEP))
     steps.insert(_package_step_index(mutated, "Upload package artifacts"), walk)
     with pytest.raises(AssertionError, match="framework-only dist/"):
+        test_the_package_job_import_walks_the_pyaml_wheel(mutated)
+
+
+def test_the_package_job_builds_the_dock_engine_wheel(workflow: dict[str, Any]) -> None:
+    """The dock-engine wheel is built after the lean check and before the pyAML
+    walk, whose venv installs it beside the framework wheel, which will require it
+    once a src/osprey module imports dock_engine. The wheel is checked for the
+    package data it reads."""
+    lean = _package_step_index(workflow, LEAN_WHEEL_STEP)
+    dock = _package_step_index(workflow, DOCK_ENGINE_WHEEL_STEP)
+    walk = _package_step_index(workflow, PYAML_WHEEL_STEP)
+    assert lean < dock < walk, (
+        "the dock-engine wheel must be built after the lean check and before the pyAML walk"
+    )
+    script = _jobs(workflow)[PACKAGE_JOB]["steps"][dock]["run"]
+    assert "uv build --package osprey-dock-engine" in script
+    assert "dist/osprey_dock_engine-*.whl" in script
+    for member in DOCK_ENGINE_WHEEL_DATA:
+        assert member in script, f"the dock-engine wheel check does not look for {member}"
+
+
+def test_the_package_job_builds_the_dock_engine_wheel__mutation_drops_the_step() -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    steps = _jobs(mutated)[PACKAGE_JOB]["steps"]
+    steps.pop(_package_step_index(mutated, DOCK_ENGINE_WHEEL_STEP))
+    with pytest.raises(AssertionError, match="no step named"):
+        test_the_package_job_builds_the_dock_engine_wheel(mutated)
+
+
+def test_the_package_job_builds_the_dock_engine_wheel__mutation_built_after_the_walk() -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    steps = _jobs(mutated)[PACKAGE_JOB]["steps"]
+    dock = steps.pop(_package_step_index(mutated, DOCK_ENGINE_WHEEL_STEP))
+    steps.insert(_package_step_index(mutated, PYAML_WHEEL_STEP) + 1, dock)
+    with pytest.raises(AssertionError, match="before the pyAML walk"):
+        test_the_package_job_builds_the_dock_engine_wheel(mutated)
+
+
+@pytest.mark.parametrize("member", DOCK_ENGINE_WHEEL_DATA)
+def test_the_package_job_builds_the_dock_engine_wheel__mutation_skips_package_data(
+    member: str,
+) -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    step = _jobs(mutated)[PACKAGE_JOB]["steps"][
+        _package_step_index(mutated, DOCK_ENGINE_WHEEL_STEP)
+    ]
+    assert member in step["run"], f"the check no longer names {member}; mutation is stale"
+    step["run"] = step["run"].replace(member, "")
+    with pytest.raises(AssertionError, match=f"does not look for {re.escape(member)}"):
+        test_the_package_job_builds_the_dock_engine_wheel(mutated)
+
+
+def test_the_package_job_import_walks_the_pyaml_wheel__mutation_walks_without_dock_engine() -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    step = _jobs(mutated)[PACKAGE_JOB]["steps"][_package_step_index(mutated, PYAML_WHEEL_STEP)]
+    step["run"] = step["run"].replace("dist/osprey_dock_engine-*.whl ", "")
+    with pytest.raises(AssertionError, match="does not install dist/osprey_dock_engine"):
         test_the_package_job_import_walks_the_pyaml_wheel(mutated)
 
 
