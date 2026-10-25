@@ -44,7 +44,8 @@ Each consumer is wired in a later stream; none of them copies the source.
 - **CANOPY backend** -- the ``osprey-dock-engine`` wheel.
 
 The package is versioned with OSPREY's ``v*`` CalVer release tags, like the
-framework; ``0.0.0-dev`` in ``package.json`` marks an untagged checkout. It is
+framework; the ``osprey-dock-engine`` wheel publishes to PyPI with each tag.
+``0.0.0-dev`` in ``package.json`` marks an untagged checkout; the JS package is
 not published to a registry.
 
 The cutover

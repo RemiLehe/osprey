@@ -10806,7 +10806,7 @@ def _with_staging(release: dict[str, Any], staging: str) -> dict[str, Any]:
 
 
 def test_the_release_gate_stages_every_member_wheel_but_the_framework(tmp_path: Path) -> None:
-    """The framework depends on every member, so a sibling left out of the
+    """The framework depends on members, so a sibling left out of the
     find-links fails the gate on the tag that first ships it; the framework's
     own wheel or any sdist staged there would let an unpublished pin resolve."""
     _assert_release_stages_every_member_wheel(yaml.safe_load(RELEASE_YML.read_text()), tmp_path)
