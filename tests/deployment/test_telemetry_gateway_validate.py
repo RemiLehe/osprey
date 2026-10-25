@@ -131,6 +131,7 @@ def test_the_ledger_chain_reads_real_lines(tmp_path: Path) -> None:
     between the file and the exporter is the rendered configuration.
     """
     import time
+    from datetime import UTC, datetime, timedelta
 
     from osprey.audit.envelope import AuditEnvelope
     from osprey.audit.writer import _encode
@@ -140,9 +141,14 @@ def test_the_ledger_chain_reads_real_lines(tmp_path: Path) -> None:
     for name in ("alice", "queueserver"):
         (audit / name).mkdir(parents=True)
 
+    # Inside the store's retention: the chain's filter/clamp drops any record
+    # whose time is older than ``retention_days`` (14 by default), so a literal
+    # date here silently ages out of the test.
+    recent = (datetime.now(UTC) - timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def envelope(**fields: object) -> bytes:
         base = {
-            "ts": "2026-10-11T10:00:00Z",
+            "ts": recent,
             "surface": "approval",
             "actor": "alice",
             "posture": "writes",
@@ -160,7 +166,9 @@ def test_the_ledger_chain_reads_real_lines(tmp_path: Path) -> None:
         envelope(surface="executor", on_behalf_of="bob", tool_use_id="toolu_1", source="x")
         + envelope(ts="garbage", surface="channel-finder")
         + b"not json\n"
-        + b'{"ts":"2026-10-11T10:00:02Z","surface":"approval","actor":"al\n'
+        + b'{"ts":"'
+        + recent.encode()
+        + b'","surface":"approval","actor":"al\n'
         + envelope(detail="d" * 4000).replace(b'"approval"', b'"over"').rstrip(b"}\n")
         + b"y" * cap
         + b"}\n"
