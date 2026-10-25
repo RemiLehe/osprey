@@ -43,6 +43,8 @@ def test_nothing_in_the_framework_requires_a_dock_engine_distribution(
     requirements = list(project.get("dependencies", []))
     for extra in project.get("optional-dependencies", {}).values():
         requirements.extend(extra)
+    for group in root_pyproject.get("dependency-groups", {}).values():
+        requirements.extend(entry for entry in group if isinstance(entry, str))
     names = {canonicalize_name(Requirement(r).name) for r in requirements}
     assert "osprey-dock-engine" not in names, sorted(names)
 

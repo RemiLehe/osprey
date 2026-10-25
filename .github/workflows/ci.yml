@@ -981,6 +981,12 @@ jobs:
         for name in modules:
             importlib.import_module(name)
         print(f'PYAML WHEEL OK ({len(modules)} modules)')
+        # The framework wheel in this venv bundles dock_engine; read its package
+        # data the way an installed consumer does, not just the wheel's file list.
+        import dock_engine
+        assert dock_engine.cases_dir().is_dir(), dock_engine.cases_dir()
+        assert len(dock_engine.rules_digest()) == 64
+        print(f'DOCK ENGINE IMPORT OK ({dock_engine.__version__})')
         "
 
   static-checks:

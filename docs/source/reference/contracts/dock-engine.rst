@@ -46,7 +46,10 @@ Each consumer is wired in a later stream; none of them copies the source.
 - **CANOPY screen runtime** -- a git dependency on ``@als-apg/dock-engine``.
 - **CANOPY backend** -- the same directory installed from git, without the
   framework: ``osprey-dock-engine @ git+https://github.com/als-apg/osprey@<ref>#subdirectory=packages/dock-engine``
-  (the directory's own ``pyproject.toml`` exists for this install alone).
+  (the directory's own ``pyproject.toml`` exists for this install alone). Never
+  beside ``osprey-framework`` in one environment: the two distributions own the
+  same ``dock_engine/`` files, so one overwrites the other and uninstalling
+  either removes the module; ``dock_engine`` warns at import when it finds both.
 
 Nothing is published to a registry: no PyPI project, no npm package. The
 engine is too small for a distribution of its own, and the three consumers

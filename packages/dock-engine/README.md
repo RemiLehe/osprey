@@ -16,7 +16,9 @@ golden case files (`cases/`) that pin the engine's behaviour, and a case runner
 - **CANOPY backend** — this directory installed from git, without the framework:
   `osprey-dock-engine @ git+https://github.com/als-apg/osprey@<ref>#subdirectory=packages/dock-engine`.
   The `pyproject.toml` here exists for that install alone; it is not a workspace
-  member of the OSPREY repo.
+  member of the OSPREY repo. Never install it beside `osprey-framework` in one
+  environment: the two distributions own the same `dock_engine/` files, so the
+  second install overwrites the first and uninstalling either removes the module.
 
 Nothing is published to a registry. Consumers are paired by `rules_digest`, not
 by a version floor. Versions follow OSPREY's CalVer `v*` tags wherever metadata
