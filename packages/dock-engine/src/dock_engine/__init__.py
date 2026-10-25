@@ -5,6 +5,9 @@ The Python side of `@als-apg/dock-engine`: the layout rules themselves
 of its layout rules. Standard library only, and independent of the framework.
 """
 
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _dist_version
+
 from ._data import cases_dir, rules_digest
 from .layout import (
     LAYOUT_REASONS,
@@ -20,16 +23,20 @@ from .layout import (
     validate_layout,
 )
 
-# The version comes from the framework's v-tags (see pyproject.toml): a built
-# distribution answers from its own metadata, and a bare source tree — no dist
+# The version comes from the framework's v-tags (see pyproject.toml). The module
+# reaches an interpreter two ways: inside the framework wheel, which bundles it
+# from packages/dock-engine, or as its own distribution installed from git by
+# CANOPY. Whichever metadata is present answers; a bare source tree — no dist
 # installed, no build hook run — answers honestly that it is unbuilt.
-try:
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as _dist_version
-
-    __version__ = _dist_version("osprey-dock-engine")
-except PackageNotFoundError:  # pragma: no cover — source tree without an install
+for _dist in ("osprey-dock-engine", "osprey-framework"):
+    try:
+        __version__ = _dist_version(_dist)
+        break
+    except PackageNotFoundError:
+        continue
+else:  # pragma: no cover — source tree without an install
     __version__ = "0.0.0+unbuilt"
+del _dist
 
 __all__ = [
     "LAYOUT_REASONS",

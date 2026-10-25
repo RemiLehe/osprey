@@ -8,14 +8,19 @@ golden case files (`cases/`) that pin the engine's behaviour, and a case runner
 
 ## How each consumer gets it
 
-- **OSPREY web terminal** — a generated vendor copy of `dist/dock-engine.mjs`.
+- **OSPREY** — `import dock_engine`: the framework wheel ships `src/dock_engine`
+  from this directory, with the case files and `dist/manifest.json` as package
+  data. The web terminal takes the JS engine as a generated vendor copy of
+  `dist/dock-engine.mjs`.
 - **CANOPY screen runtime** — a git dependency on `@als-apg/dock-engine`.
-- **CANOPY backend** — the Python distribution `osprey-dock-engine`
-  (`import dock_engine`), built from this same directory, which carries the
-  case files and `dist/manifest.json` as package data.
+- **CANOPY backend** — this directory installed from git, without the framework:
+  `osprey-dock-engine @ git+https://github.com/als-apg/osprey@<ref>#subdirectory=packages/dock-engine`.
+  The `pyproject.toml` here exists for that install alone; it is not a workspace
+  member of the OSPREY repo.
 
-The package is versioned with OSPREY's CalVer release tags; `0.0.0-dev` in
-`package.json` marks an untagged checkout. It is not published to a registry.
+Nothing is published to a registry. Consumers are paired by `rules_digest`, not
+by a version floor. Versions follow OSPREY's CalVer `v*` tags wherever metadata
+exists; `0.0.0-dev` in `package.json` marks an untagged checkout.
 
 ## Public API
 

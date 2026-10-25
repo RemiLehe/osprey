@@ -6,7 +6,7 @@ on:
       - 'v*.*.*'  # Triggers on version tags like v2026.5.0
 
 # PAIRED PUBLISHING: every workspace member (osprey-connectors,
-# pyaml-cs-osprey, osprey-dock-engine) versions with the framework's own calendar stream (same
+# pyaml-cs-osprey) versions with the framework's own calendar stream (same
 # v-tags, same describe — see each member's pyproject.toml), so one tag builds
 # and publishes EVERY wheel, always carrying the same number. The old two-tag
 # dance (a connectors release published before the framework tag that needed
@@ -267,7 +267,7 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-    # The framework depends on workspace members, and PyPI takes files one
+    # The framework depends on every workspace member, and PyPI takes files one
     # at a time. Members upload first, from a directory holding only their
     # files, so a refused member upload stops the run before the framework is
     # live with a dependency nothing satisfies. Staged by exclusion, so a member

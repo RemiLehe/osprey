@@ -940,23 +940,22 @@ jobs:
         print(f'LEAN WHEEL OK ({len(modules)} modules)')
         "
 
-    # After the lean check, whose venv must hold the connectors wheel alone, and
-    # before the pyAML walk, whose venv installs this wheel beside the framework,
-    # which will require it once a src/osprey module imports dock_engine and no
-    # index serves it. The case corpus and the
-    # manifest sit outside the import root and reach the wheel by force-include,
-    # so the check reads the wheel's file list for both.
-    - name: Build osprey-dock-engine wheel and check its package data
+    # The framework wheel ships `dock_engine` from packages/dock-engine (the root
+    # pyproject's wheel target); there is no dock-engine wheel of its own. The
+    # case corpus and the manifest sit outside the import root and reach the
+    # wheel by force-include, so the check reads the wheel's file list for the
+    # module and for both.
+    - name: Check the framework wheel carries dock_engine and its package data
       run: |
-        uv build --package osprey-dock-engine
-        python3 - dist/osprey_dock_engine-*.whl <<'EOF'
+        python3 - dist/osprey_framework-*.whl <<'EOF'
         import sys, zipfile
         (wheel,) = sys.argv[1:]
         names = zipfile.ZipFile(wheel).namelist()
+        assert 'dock_engine/__init__.py' in names, f'{wheel} carries no dock_engine package'
         cases = [n for n in names if n.startswith('dock_engine/cases/validate/') and n.endswith('.json')]
         assert cases, f'{wheel} carries no dock_engine/cases/validate/ case'
         assert 'dock_engine/manifest.json' in names, f'{wheel} carries no dock_engine/manifest.json'
-        print(f'DOCK ENGINE WHEEL OK ({len(cases)} validate cases)')
+        print(f'DOCK ENGINE IN FRAMEWORK WHEEL OK ({len(cases)} validate cases)')
         EOF
 
     # A step of its own, after the lean check rather than inside it: the pyAML
@@ -972,8 +971,7 @@ jobs:
         uv build --package pyaml-cs-osprey
         uv venv /tmp/pyaml-check --python 3.11
         uv pip install --python /tmp/pyaml-check/bin/python \
-          dist/osprey_framework-*.whl dist/osprey_connectors-*.whl dist/osprey_dock_engine-*.whl \
-          dist/pyaml_cs_osprey-*.whl
+          dist/osprey_framework-*.whl dist/osprey_connectors-*.whl dist/pyaml_cs_osprey-*.whl
         /tmp/pyaml-check/bin/python -c "
         import importlib, pkgutil
         import pyaml_cs_osprey

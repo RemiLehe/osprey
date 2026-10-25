@@ -266,12 +266,6 @@ docs = [
 
 # Development and testing
 dev = [
-    # The dock layout rules shared with CANOPY, and the engine's case corpus.
-    # A dev requirement until the first src/osprey module imports dock_engine,
-    # which moves it to [project] dependencies. Versions with this repo's own
-    # calendar stream like pyaml-cs-osprey, so the floor is the last stable
-    # framework release tag.
-    "osprey-dock-engine>=2026.6.2",
     "pytest",
     "setuptools-scm",  # The build backend under hatch-vcs, called directly by the version-parity test
     "pytest-asyncio",
@@ -443,12 +437,11 @@ all = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/osprey-connectors", "packages/pyaml-cs-osprey", "packages/dock-engine"]
+members = ["packages/osprey-connectors", "packages/pyaml-cs-osprey"]
 
 [tool.uv.sources]
 osprey-connectors = { workspace = true }
 pyaml-cs-osprey = { workspace = true }
-osprey-dock-engine = { workspace = true }
 
 [project.urls]
 Homepage = "https://als-apg.github.io/osprey"
@@ -539,7 +532,19 @@ version-file = "src/osprey/_version.py"
 exclude = ["src/osprey/templates/apps/control_assistant/data/benchmarks/results", "**/prefetched-models"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/osprey"]
+# `dock_engine` (the dock layout rules shared with CANOPY) ships inside this
+# wheel from packages/dock-engine: it is too small for a distribution of its
+# own, and nothing on PyPI could otherwise satisfy a framework import of it.
+# CANOPY installs the same directory from git (`#subdirectory=packages/dock-engine`),
+# never the framework. The import-linter contract `dock-engine-standalone`
+# keeps the module from importing the framework back.
+packages = ["src/osprey", "packages/dock-engine/src/dock_engine"]
+
+# The engine's case corpus and manifest live beside its TypeScript, outside the
+# import root; `dock_engine._data` reads both as package data.
+[tool.hatch.build.targets.wheel.force-include]
+"packages/dock-engine/cases" = "dock_engine/cases"
+"packages/dock-engine/dist/manifest.json" = "dock_engine/manifest.json"
 
 # Development tool configurations
 [tool.mypy]

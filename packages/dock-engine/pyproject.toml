@@ -1,3 +1,8 @@
+# Not a workspace member and never published. Inside OSPREY, `dock_engine` ships
+# in the framework wheel (the root pyproject's wheel target bundles
+# src/dock_engine, cases/ and dist/manifest.json). This file exists so CANOPY
+# can install the same directory from git without the framework:
+#   osprey-dock-engine @ git+https://github.com/als-apg/osprey@<ref>#subdirectory=packages/dock-engine
 [build-system]
 requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"

@@ -22,11 +22,13 @@ What the package is
   ``@als-apg/dock-engine/cases`` is the case runner (``loadCases``,
   ``runCase``, ``checkCase``, ``CASES_DIR``) that replays the cases against any
   implementation of the engine.
-- **One Python rule implementation.** The distribution ``osprey-dock-engine``
-  (``import dock_engine``, Python 3.11+, standard library only) implements the
-  layout rules -- ``validate_layout``, ``layout_refusal``, ``normalize_layout``
-  and the reason vocabulary ``LAYOUT_REASONS``. Its wheel carries the case
-  files and ``dist/manifest.json`` as package data.
+- **One Python rule implementation.** The module ``dock_engine`` (Python
+  3.11+, standard library only) implements the layout rules --
+  ``validate_layout``, ``layout_refusal``, ``normalize_layout`` and the reason
+  vocabulary ``LAYOUT_REASONS``. The framework wheel ships it from
+  ``packages/dock-engine``, with the case files and ``dist/manifest.json`` as
+  package data; an import-linter contract keeps it from importing the
+  framework back.
 
 The Python tests replay the ``validate`` and ``normalize`` cases through
 ``dock_engine`` and check that its reason vocabulary and ``rules_digest()``
@@ -38,15 +40,21 @@ How each consumer obtains it
 
 Each consumer is wired in a later stream; none of them copies the source.
 
-- **OSPREY web terminal** -- a generated vendor copy of
+- **OSPREY** -- ``import dock_engine``; the framework wheel carries it. The
+  web terminal takes the JS engine as a generated vendor copy of
   ``dist/dock-engine.mjs``.
 - **CANOPY screen runtime** -- a git dependency on ``@als-apg/dock-engine``.
-- **CANOPY backend** -- the ``osprey-dock-engine`` wheel.
+- **CANOPY backend** -- the same directory installed from git, without the
+  framework: ``osprey-dock-engine @ git+https://github.com/als-apg/osprey@<ref>#subdirectory=packages/dock-engine``
+  (the directory's own ``pyproject.toml`` exists for this install alone).
 
-The package is versioned with OSPREY's ``v*`` CalVer release tags, like the
-framework; the ``osprey-dock-engine`` wheel publishes to PyPI with each tag.
-``0.0.0-dev`` in ``package.json`` marks an untagged checkout; the JS package is
-not published to a registry.
+Nothing is published to a registry: no PyPI project, no npm package. The
+engine is too small for a distribution of its own, and the three consumers
+are paired by ``rules_digest()`` -- the hash over the reason vocabulary, the
+``normalize``/``validate`` cases and ``layout.ts`` -- rather than by a version
+floor. Versions follow OSPREY's ``v*`` CalVer tags wherever metadata exists
+(the framework wheel, or the git install); ``0.0.0-dev`` in ``package.json``
+marks an untagged checkout.
 
 The cutover
 ===========
