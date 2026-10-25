@@ -26,6 +26,7 @@ accelerator-middle-layer-apg = "2026-10-11T00:00:00Z"
 [manifest]
 members = [
     "osprey-connectors",
+    "osprey-dock-engine",
     "osprey-framework",
     "pyaml-cs-osprey",
 ]
@@ -5188,6 +5189,10 @@ dev = [
 ]
 
 [[package]]
+name = "osprey-dock-engine"
+source = { editable = "packages/dock-engine" }
+
+[[package]]
 name = "osprey-framework"
 source = { editable = "." }
 dependencies = [
@@ -5284,6 +5289,7 @@ all = [
     { name = "mss" },
     { name = "mypy" },
     { name = "myst-parser" },
+    { name = "osprey-dock-engine" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -5327,6 +5333,7 @@ dev = [
     { name = "import-linter" },
     { name = "linkml" },
     { name = "mypy" },
+    { name = "osprey-dock-engine" },
     { name = "pillow" },
     { name = "pre-commit" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -5455,6 +5462,8 @@ requires-dist = [
     { name = "openai", specifier = ">=2.53.0,<3" },
     { name = "ophyd-async", extras = ["ca"], specifier = ">=0.16,<1.0" },
     { name = "osprey-connectors", editable = "packages/osprey-connectors" },
+    { name = "osprey-dock-engine", marker = "extra == 'all'", editable = "packages/dock-engine" },
+    { name = "osprey-dock-engine", marker = "extra == 'dev'", editable = "packages/dock-engine" },
     { name = "pandas", specifier = ">=2.2.3" },
     { name = "pillow", specifier = ">=12.3" },
     { name = "pillow", marker = "extra == 'all'", specifier = ">=10" },

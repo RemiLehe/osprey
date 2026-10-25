@@ -266,6 +266,12 @@ docs = [
 
 # Development and testing
 dev = [
+    # The dock layout rules shared with CANOPY, and the engine's case corpus.
+    # A dev requirement until the first src/osprey module imports dock_engine,
+    # which moves it to [project] dependencies. Versions with this repo's own
+    # calendar stream like pyaml-cs-osprey, so the floor is the last stable
+    # framework release tag.
+    "osprey-dock-engine>=2026.6.2",
     "pytest",
     "setuptools-scm",  # The build backend under hatch-vcs, called directly by the version-parity test
     "pytest-asyncio",
@@ -437,11 +443,12 @@ all = [
 ]
 
 [tool.uv.workspace]
-members = ["packages/osprey-connectors", "packages/pyaml-cs-osprey"]
+members = ["packages/osprey-connectors", "packages/pyaml-cs-osprey", "packages/dock-engine"]
 
 [tool.uv.sources]
 osprey-connectors = { workspace = true }
 pyaml-cs-osprey = { workspace = true }
+osprey-dock-engine = { workspace = true }
 
 [project.urls]
 Homepage = "https://als-apg.github.io/osprey"
@@ -543,9 +550,14 @@ python_version = "3.11"
 # report the same errors. `explicit_package_bases` is the half that makes the
 # roots count: it derives each module's name from them rather than from the
 # directory the file happens to live in.
-mypy_path = "src:packages/osprey-connectors/src:packages/pyaml-cs-osprey/src"
+mypy_path = "src:packages/osprey-connectors/src:packages/pyaml-cs-osprey/src:packages/dock-engine/src"
 explicit_package_bases = true
-files = ["src", "packages/osprey-connectors/src", "packages/pyaml-cs-osprey/src"]
+files = [
+    "src",
+    "packages/osprey-connectors/src",
+    "packages/pyaml-cs-osprey/src",
+    "packages/dock-engine/src",
+]
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false  # Gradual typing
@@ -670,12 +682,13 @@ markers = [
 ]
 
 # Import boundaries, checked by `lint-imports` (import-linter) in the lint job.
-# The graph covers both distributions: `osprey` is the framework and
-# `osprey_connectors` the separately installable connectors package. Every
+# The graph covers three distributions: `osprey` is the framework,
+# `osprey_connectors` the separately installable connectors package, and
+# `dock_engine` the dock layout rules shared with CANOPY. Every
 # import statement counts, including ones inside functions and under
 # `if TYPE_CHECKING:`; an `importlib.import_module("...")` string does not.
 [tool.importlinter]
-root_packages = ["osprey", "osprey_connectors"]
+root_packages = ["osprey", "osprey_connectors", "dock_engine"]
 
 [[tool.importlinter.contracts]]
 id = "connectors-standalone"
@@ -685,6 +698,15 @@ name = "osprey_connectors never imports the framework"
 type = "forbidden"
 source_modules = ["osprey_connectors"]
 forbidden_modules = ["osprey"]
+
+[[tool.importlinter.contracts]]
+id = "dock-engine-standalone"
+name = "dock_engine imports neither the framework nor the connectors"
+# The package is shared with CANOPY, which installs it without either, and is
+# standard library only.
+type = "forbidden"
+source_modules = ["dock_engine"]
+forbidden_modules = ["osprey", "osprey_connectors"]
 
 [[tool.importlinter.contracts]]
 id = "connectors-public-api"
@@ -738,6 +760,7 @@ src = [
     "packages/osprey-connectors/src",
     "packages/osprey-connectors/tests",
     "packages/pyaml-cs-osprey/src",
+    "packages/dock-engine/src",
 ]
 # Executable Python scripts without a .py suffix. Ruff selects files by suffix and
 # cannot see them; the pre-commit hook selects by shebang and lints them.
@@ -748,6 +771,7 @@ extend-exclude = [
     "*/src/osprey/_version.py",
     "*/src/osprey_connectors/_version.py",
     "*/src/pyaml_cs_osprey/_version.py",
+    "*/src/dock_engine/_version.py",
     # Generated from the facility schema by gen-pydantic; compared byte for byte
     # with a regeneration, so it is never reformatted.
     "src/osprey/facility/schema/_generated/",
@@ -826,6 +850,7 @@ source = [
     "deployment",
     "packages/osprey-connectors/src",
     "packages/pyaml-cs-osprey/src",
+    "packages/dock-engine/src",
 ]
 # Hooks ship as standalone scripts and are exercised by spawning them, so most of
 # their code runs in child processes. The subprocess patcher makes those children
@@ -844,6 +869,7 @@ omit = [
     # Written by the hatch-vcs build hook (gitignored); not source anyone maintains.
     "*/src/osprey/_version.py",
     "*/src/osprey_connectors/_version.py",
+    "*/src/dock_engine/_version.py",
 ]
 
 [tool.coverage.report]
