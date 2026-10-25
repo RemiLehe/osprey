@@ -150,7 +150,7 @@ def _is_workspace_requirement(line: str) -> bool:
     from packaging.requirements import Requirement
     from packaging.utils import canonicalize_name
 
-    members = {canonicalize_name(dist) for dist in WORKSPACE_MEMBERS.values()}
+    members = {canonicalize_name(member) for member in WORKSPACE_MEMBERS}
     return canonicalize_name(Requirement(line).name) in members
 
 
@@ -448,17 +448,17 @@ def _copy_local_framework_for_override(out_dir):
         # call, so the requirements are satisfied locally.
         cached_wheels = [cached_wheel]
         member_wheels: dict[str, tuple[Path, Path]] = {}
-        for directory, dist in WORKSPACE_MEMBERS.items():
-            member_root = osprey_source_root / "packages" / directory
+        for member in WORKSPACE_MEMBERS:
+            member_root = osprey_source_root / "packages" / member
             if not (member_root / "pyproject.toml").exists():
                 raise DevModeUnavailableError(
-                    f"the {dist} workspace member is missing from the checkout ({member_root})",
+                    f"the {member} workspace member is missing from the checkout ({member_root})",
                     "--dev stages every workspace member wheel beside the "
                     "framework wheel because the framework requires them.\n"
-                    f"Restore packages/{directory} in the checkout.",
+                    f"Restore packages/{member} in the checkout.",
                 )
             member_wheel = _build_dev_wheel_cached(member_root)
-            member_wheels[dist] = (member_root, member_wheel)
+            member_wheels[member] = (member_root, member_wheel)
             cached_wheels.append(member_wheel)
         _require_members_satisfy_framework(cached_wheel, member_wheels)
 

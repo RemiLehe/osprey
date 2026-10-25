@@ -32,10 +32,6 @@ import osprey
 from osprey.deployment.members import WORKSPACE_MEMBERS
 from tests.deployment._proxy_idiom import run_instructions
 
-#: The member directories under ``packages/`` (the Containerfile loops over these).
-MEMBER_DIRS = tuple(WORKSPACE_MEMBERS)
-#: The member distributions (the service wheel layers stage wheels by these).
-MEMBER_DISTS = tuple(WORKSPACE_MEMBERS.values())
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 CONTAINERFILE = REPO_ROOT / "docker" / "virtual-accelerator" / "Containerfile"
 SERVICES_DIR = pathlib.Path(osprey.__file__).parent / "templates" / "services"
@@ -123,23 +119,23 @@ def test_containerfile_loops_over_every_packages_member():
     so a member added to the workspace is installed the day it lands."""
     body = _containerfile_install_body()
     assert re.search(r"for \w+ in \./packages/\*/;", body), body
-    for member in MEMBER_DIRS:
+    for member in WORKSPACE_MEMBERS:
         assert f"./packages/{member}" not in body, (
             f"the install layer names {member} explicitly instead of looping over packages/*/"
         )
 
 
 def test_containerfile_installs_each_member_before_the_framework(tmp_path):
-    result, calls = _run_containerfile_install(tmp_path, MEMBER_DIRS)
+    result, calls = _run_containerfile_install(tmp_path, WORKSPACE_MEMBERS)
     assert result.returncode == 0, result.stderr
 
     member_calls = {
         member: i
         for i, (_, argv) in enumerate(calls)
-        for member in MEMBER_DIRS
+        for member in WORKSPACE_MEMBERS
         if any(a.rstrip("/").endswith(f"packages/{member}") for a in argv)
     }
-    assert set(member_calls) == set(MEMBER_DIRS), calls
+    assert set(member_calls) == set(WORKSPACE_MEMBERS), calls
     framework = [i for i, (_, argv) in enumerate(calls) if ".[virtual-accelerator]" in argv]
     assert len(framework) == 1, calls
     assert max(member_calls.values()) < framework[0], (
@@ -150,20 +146,20 @@ def test_containerfile_installs_each_member_before_the_framework(tmp_path):
 def test_containerfile_member_builds_carry_the_pretend_version(tmp_path):
     """The staged context has no .git, so every source build — members and
     framework alike — needs the host-resolved version handed to setuptools-scm."""
-    _, calls = _run_containerfile_install(tmp_path, MEMBER_DIRS)
+    _, calls = _run_containerfile_install(tmp_path, WORKSPACE_MEMBERS)
     source_builds = [
         (version, argv)
         for version, argv in calls
         if ".[virtual-accelerator]" in argv or any("packages/" in a for a in argv)
     ]
-    assert len(source_builds) == len(MEMBER_DIRS) + 1, calls
+    assert len(source_builds) == len(WORKSPACE_MEMBERS) + 1, calls
     for version, argv in source_builds:
         assert version == OSPREY_VERSION, f"{argv} built without the pretend version"
 
 
 def test_containerfile_member_loop_covers_an_unlisted_member(tmp_path):
     """A member present under packages/ but not yet in any list still installs."""
-    members = (*MEMBER_DIRS, "zz-new-member")
+    members = (*WORKSPACE_MEMBERS, "zz-new-member")
     result, calls = _run_containerfile_install(tmp_path, members)
     assert result.returncode == 0, result.stderr
     assert any(
@@ -173,8 +169,8 @@ def test_containerfile_member_loop_covers_an_unlisted_member(tmp_path):
 
 def test_containerfile_member_failure_fails_the_layer(tmp_path):
     """A failed member build must not be masked by a later loop iteration."""
-    first = sorted(MEMBER_DIRS)[0]
-    result, calls = _run_containerfile_install(tmp_path, MEMBER_DIRS, failing=first)
+    first = sorted(WORKSPACE_MEMBERS)[0]
+    result, calls = _run_containerfile_install(tmp_path, WORKSPACE_MEMBERS, failing=first)
     assert result.returncode != 0, f"layer succeeded though {first} failed: {calls}"
     assert not any(".[virtual-accelerator]" in argv for _, argv in calls), (
         "the framework installed after a member build failed"
@@ -231,10 +227,10 @@ def test_resolving_call_names_every_member_wheel_glob(service):
 
 @pytest.mark.parametrize("service", sorted(RESOLVING_SERVICES))
 def test_resolving_call_passes_every_staged_member_wheel(service, tmp_path):
-    calls = _run_wheel_layer(service, tmp_path, ["osprey-framework", *MEMBER_DISTS])
+    calls = _run_wheel_layer(service, tmp_path, ["osprey-framework", *WORKSPACE_MEMBERS])
     resolving = _resolving_call(service, calls)
     names = [pathlib.Path(a.split("[")[0]).name for a in resolving if ".whl" in a]
-    for member in MEMBER_DISTS:
+    for member in WORKSPACE_MEMBERS:
         assert _wheel_name(member) in names, (
             f"{service}: {member} wheel missing from the resolving call, so pip "
             f"would fetch it from PyPI: {resolving}"

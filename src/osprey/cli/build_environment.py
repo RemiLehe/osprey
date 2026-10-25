@@ -476,7 +476,7 @@ def _pip_member_requirements(osprey_spec: str) -> list[str]:
     """
     from packaging.requirements import InvalidRequirement, Requirement
 
-    from osprey.deployment.members import WORKSPACE_MEMBERS, member_requirements
+    from osprey.deployment.members import WORKSPACE_MEMBERS
 
     location: str | None
     try:
@@ -490,9 +490,10 @@ def _pip_member_requirements(osprey_spec: str) -> list[str]:
 
     if location.startswith("file://"):
         source_root = Path(unquote(urlparse(location).path))
-        return [str(source_root / "packages" / directory) for directory in WORKSPACE_MEMBERS]
+        return [str(source_root / "packages" / member) for member in WORKSPACE_MEMBERS]
     if location.startswith("git+"):
-        return member_requirements(location.split("#", 1)[0])
+        base = location.split("#", 1)[0]
+        return [f"{m} @ {base}#subdirectory=packages/{m}" for m in WORKSPACE_MEMBERS]
     raise BuildProfileError(
         f"Cannot locate the workspace members for osprey_install {osprey_spec!r}. "
         "pip needs each member from the same source as the framework: use a local "
