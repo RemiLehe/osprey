@@ -42,15 +42,16 @@ sidecar, as it already did for the operator's credentials.
 
 ## The check
 
-A pull request that touches `src/` or `packages/` needs a fragment. To check
-before pushing:
+A pull request that touches `src/`, `packages/` or `plugins/` needs a fragment;
+the check below names those directories in every verdict. To check before
+pushing:
 
 ```bash
 uv run python scripts/changelog_fragments.py check --base origin/main
 ```
 
-`./scripts/premerge_check.sh main` runs the same check, and the `lint` CI job
-enforces it.
+`uv run python scripts/check.py quick --changed origin/main` runs the same check
+(add `--worktree` to count uncommitted fragments), and the `lint` CI job enforces it.
 
 ## Hands off CHANGELOG.md
 
