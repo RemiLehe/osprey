@@ -43,20 +43,34 @@ Making Changes
 
 **2. Make changes** -- follow the code standards below, add tests, update docs.
 
-**3. Test locally.** ``scripts/gate.sh`` is the one local spelling of the merge gate. Run
-``./scripts/gate.sh full`` before you open a PR, and ``./scripts/gate.sh fast <test paths>``
-over the tests you touched while you work. The helper scripts serve the loops around it:
+**3. Test locally** with the check command, ``scripts/check.py``, the one
+declaration of the merge gate:
 
 .. code-block:: bash
 
-   # Tier 1: Quick check (< 30s) -- before every commit
-   ./scripts/quick_check.sh
+   # The quick tier -- before every commit (--fix lets ruff and prettier rewrite
+   # files first)
+   uv run python scripts/check.py quick
 
-   # Tier 2: Full CI check (2-3 min) -- before pushing
-   ./scripts/ci_check.sh
+   # The full tier -- before pushing or opening a PR
+   uv run python scripts/check.py full
 
-   # Tier 3: Pre-merge check -- before creating a PR (compare against your PR target)
-   ./scripts/premerge_check.sh main
+   # The quick tier scoped to your diff (name your PR target; add --worktree
+   # to judge uncommitted changes too)
+   uv run python scripts/check.py quick --changed origin/main
+
+``uv run python scripts/check.py list`` prints what each tier runs. The scoped
+run also names the CI lanes your diff touches. ``--base BASE`` arms the checks
+that judge a range without scoping the tier, so ``full --base origin/main``
+judges the whole tree and the range in one verdict.
+
+JavaScript (``*.js`` and ``*.mjs``) is formatted by Prettier, exact-pinned in
+``package.json`` and configured by ``.prettierrc.json``: ``npm run format``
+rewrites the tree, and the ``prettier`` check (``npm run format:check``) fails
+any file it would rewrite. Markdown, YAML, JSON, CSS and HTML are not formatted.
+Type a value at its declaration, as a typed local or a typed constant, never
+with a cast mid-expression: the formatter moves the parentheses such a cast
+depends on, and the cast then types a different expression.
 
 **4. Commit changes** using conventional commit format:
 
@@ -78,10 +92,12 @@ Commit Message Format
 - ``test:`` -- Tests
 - ``chore:`` -- Dependencies, build
 
-Every pull request that touches ``src/`` or ``packages/`` needs a changelog
-fragment: a small file in ``changelog.d/`` named ``<name>.<type>.md`` (use the
-issue number as the name when there is one). The ``lint`` CI job checks for one,
-and ``./scripts/premerge_check.sh main`` checks the same thing locally. Fragments
+Every pull request that touches a directory the changelog gate covers needs a
+changelog fragment: a small file in ``changelog.d/`` named ``<name>.<type>.md``
+(use the issue number as the name when there is one).
+``uv run python scripts/changelog_fragments.py check --base origin/main`` names the
+directories the gate covers in every verdict. The ``lint`` CI job checks for a fragment,
+and ``uv run python scripts/check.py quick --changed origin/main`` checks the same thing locally. Fragments
 are folded into ``CHANGELOG.md`` when a release is cut — never add entries to
 ``CHANGELOG.md`` by hand. See ``changelog.d/README.md`` for the type list.
 
@@ -90,7 +106,7 @@ Pull Request Process
 
 1. Push your branch: ``git push origin feature/your-feature-name``
 2. Open a PR on GitHub with a description, related issues, and testing performed.
-3. PR requirements: pass all required CI checks, include a changelog fragment in ``changelog.d/`` for any change under ``src/`` or ``packages/``, and add appropriate tests. Internal-mode contributors with push access self-merge after CI is green (branch protection requires zero approving reviews); fork-mode contributions wait for a maintainer to merge.
+3. PR requirements: pass all required CI checks, include a changelog fragment in ``changelog.d/`` when the changelog gate asks for one, and add appropriate tests. Internal-mode contributors with push access self-merge after CI is green (branch protection requires zero approving reviews); fork-mode contributions wait for a maintainer to merge.
 4. During review: respond to feedback promptly, make requested changes, ask questions if unclear.
 
 Branch Protection on ``main``
