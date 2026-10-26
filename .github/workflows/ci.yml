@@ -1237,18 +1237,23 @@ jobs:
     - name: Configure apt for the Playwright system deps
       # The runner's sources read `mirror+file:/etc/apt/apt-mirrors.txt`, one
       # `URL<TAB>priority:N` per line, lowest tried first. Swapping azure's 1
-      # with archive.ubuntu.com's 2 keeps azure as the fallback. Downloaded
-      # debs are kept in a runner-owned directory the cache steps can reach.
+      # with archive.ubuntu.com's 2 keeps azure as the fallback; a file in any
+      # other shape is left as it is. Downloaded debs are kept in a
+      # runner-owned directory the cache steps can reach. The snippet's name
+      # sorts after the image's own `zz-retries`, which would otherwise
+      # override its retry count.
       run: |
         sudo sed -i -E \
           -e 's#^(http://azure\.archive\.ubuntu\.com/ubuntu/\t)priority:1$#\1priority:2#' \
           -e 's#^(https?://archive\.ubuntu\.com/ubuntu/\t)priority:2$#\1priority:1#' \
           /etc/apt/apt-mirrors.txt
         cat /etc/apt/apt-mirrors.txt
+        grep -Eq '^https?://archive\.ubuntu\.com/ubuntu/[[:space:]]+priority:1$' /etc/apt/apt-mirrors.txt \
+          || echo "::warning::apt-mirrors.txt not in the expected shape; apt keeps the image's mirror order"
         mkdir -p "$HOME/apt-archives/partial"
-        sudo tee /etc/apt/apt.conf.d/99-playwright-deps-cache >/dev/null <<EOF
+        sudo tee /etc/apt/apt.conf.d/zzz-playwright-deps-cache >/dev/null <<EOF
         Dir::Cache::Archives "$HOME/apt-archives";
-        Binary::apt::APT::Keep-Downloaded-Packages "true";
+        APT::Keep-Downloaded-Packages "true";
         Acquire::http::Timeout "15";
         Acquire::Retries "3";
         EOF
@@ -1274,8 +1279,11 @@ jobs:
 
     - name: Hand the apt debs to the runner user
       # apt wrote them as root, along with its lock file; the save cannot
-      # archive what it cannot read.
+      # archive what it cannot read. autoclean first drops debs the current
+      # indexes no longer list, so a cache carried across image bumps by the
+      # prefix restore-key does not keep every superseded version.
       run: |
+        sudo apt-get autoclean
         sudo chown -R "$USER" ~/apt-archives
         rm -f ~/apt-archives/lock
 

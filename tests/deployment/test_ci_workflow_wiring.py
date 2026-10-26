@@ -4512,6 +4512,9 @@ def _browser_cache_problems(wf: dict[str, Any]) -> list[str]:
     before any suite, so a failing suite still leaves the next run a warm
     cache; both have to name the same key and paths; and the paths have to
     hold the browsers and the directory apt is told to keep its debs in.
+    Between the installs and the save, that directory has to be handed back
+    to the runner user: apt leaves it root-owned, and a save that cannot read
+    it only warns, so the cache would silently never be written.
     """
     steps = _jobs(wf)[BROWSER_JOB]["steps"]
 
@@ -4538,6 +4541,11 @@ def _browser_cache_problems(wf: dict[str, Any]) -> list[str]:
         problems.append("paths")
     if not {"~/.cache/ms-playwright", f"~/{archives[0]}"} <= paths:
         problems.append("coverage")
+    handbacks = where(
+        lambda s: "chown" in s.get("run", "") and f"~/{archives[0]}" in s.get("run", "")
+    )
+    if not any(max(installs) < i < saves[0] for i in handbacks):
+        problems.append("ownership")
     return problems
 
 
@@ -4562,6 +4570,13 @@ def test_the_playwright_cache_brackets_the_installs__mutation_drops_the_apt_arch
     assert _browser_cache_problems(mutated) == ["coverage"]
 
 
+def test_the_playwright_cache_brackets_the_installs__mutation_drops_the_handback() -> None:
+    mutated = copy.deepcopy(_load_workflow())
+    job = _jobs(mutated)[BROWSER_JOB]
+    job["steps"] = [s for s in job["steps"] if "chown" not in s.get("run", "")]
+    assert _browser_cache_problems(mutated) == ["ownership"]
+
+
 def test_the_playwright_installs_carry_their_own_cap(workflow: dict[str, Any]) -> None:
     """A stalled mirror has to fail the install in minutes, not after the job's
     whole timeout, so the log points at the install rather than the job."""
@@ -4573,7 +4588,10 @@ def test_the_playwright_installs_carry_their_own_cap(workflow: dict[str, Any]) -
     assert all(
         isinstance(cap, int) and cap <= _PLAYWRIGHT_INSTALL_CAP_MINUTES for cap in caps.values()
     ), caps
-    assert sum(caps.values()) < job["timeout-minutes"], (caps, job["timeout-minutes"])
+    assert sum(c for c in caps.values() if isinstance(c, int)) < job["timeout-minutes"], (
+        caps,
+        job["timeout-minutes"],
+    )
 
 
 def test_the_playwright_installs_carry_their_own_cap__mutation_drops_one() -> None:
