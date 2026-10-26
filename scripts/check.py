@@ -575,29 +575,11 @@ LANES: tuple[Lane, ...] = (
     ),
 )
 
-#: Run by the bare venv's interpreter after the connectors wheel is installed in it.
-LEAN_WHEEL_PROBE = """\
-import importlib, pkgutil, sys
-import osprey_connectors.control_system._epics_connector
-import osprey_connectors.control_system
-import osprey_connectors.errors, osprey_connectors.config, osprey_connectors.logger
-import osprey_connectors.simulation
-bad = sorted({m.split('.')[0] for m in sys.modules} & {'litellm','openai','anthropic','fastapi','playwright','osprey'})
-assert not bad, f'lean wheel loaded: {bad}'
-# Every module in the wheel must import on the bare venv: a missed osprey.*
-# rewrite in a leaf nothing imports transitively would otherwise ship.
-# walk_packages swallows package import errors unless onerror raises.
-import osprey_connectors
-def _raise(name):
-    raise ImportError(f'failed to walk {name}')
-modules = [m.name for m in pkgutil.walk_packages(osprey_connectors.__path__, 'osprey_connectors.', onerror=_raise)]
-for name in modules:
-    importlib.import_module(name)
-assert 'osprey' not in sys.modules, 'a lean-wheel module imported the osprey framework'
-import importlib.resources
-assert (importlib.resources.files('osprey_connectors') / 'py.typed').is_file(), 'py.typed missing from the wheel'
-print(f'LEAN WHEEL OK ({len(modules)} modules)')
-"""
+#: The connectors wheel's import walk, shared with release-connectors.yml so the
+#: wheel a connectors tag publishes passes the check every pull request runs.
+#: Run with ``-I`` by the bare venv's interpreter: neither the checkout nor
+#: ``PYTHONPATH`` can lend it a module the wheel does not ship.
+LEAN_IMPORT_WALK = "scripts/ci/connectors_lean_import_walk.py"
 
 #: Run with the framework wheel as its argument: the wheel bundles dock_engine
 #: and its package data.
@@ -644,7 +626,7 @@ PACKAGE_STEPS: tuple[tuple[str, ...], ...] = (
         "{scratch}/lean/bin/python",
         "dist/osprey_connectors-*.whl",
     ),
-    ("{scratch}/lean/bin/python", "-c", LEAN_WHEEL_PROBE),
+    ("{scratch}/lean/bin/python", "-I", LEAN_IMPORT_WALK),
     ("python3", "-c", DOCK_ENGINE_WHEEL_PROBE, "dist/osprey_framework-*.whl"),
     ("uv", "build", "--package", "pyaml-cs-osprey"),
     ("uv", "venv", "{scratch}/pyaml", "--python", "3.11"),

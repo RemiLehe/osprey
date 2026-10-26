@@ -579,7 +579,7 @@ def test_run_resolves_each_check_to_its_one_command(monkeypatch: pytest.MonkeyPa
         ["uv", "build", "--package", "osprey-connectors"],
         ["uv", "venv", "{scratch}/lean", "--python", "3.11"],
         ["uv", "pip", "install", "--python", lean, "dist/osprey_connectors-*.whl"],
-        [lean, "-c", check.LEAN_WHEEL_PROBE],
+        [lean, "-I", check.LEAN_IMPORT_WALK],
         ["python3", "-c", check.DOCK_ENGINE_WHEEL_PROBE, "dist/osprey_framework-*.whl"],
         ["uv", "build", "--package", "pyaml-cs-osprey"],
         ["uv", "venv", "{scratch}/pyaml", "--python", "3.11"],
@@ -1924,7 +1924,7 @@ def test_the_package_check_builds_into_an_empty_dist(
         python,
         "dist/osprey_connectors-1.0-py3-none-any.whl",
     ]
-    assert probe == [python, "-c", check.LEAN_WHEEL_PROBE]
+    assert probe == [python, "-I", check.LEAN_IMPORT_WALK]
     # A glob no built file matches is passed on as written, for the step to fail on.
     assert wheel_probe == [
         "python3",
