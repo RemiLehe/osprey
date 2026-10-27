@@ -1,5 +1,6 @@
 """Base Provider Interface for AI Model Access."""
 
+import math
 import os
 from abc import ABC
 from typing import Any, Literal
@@ -35,6 +36,31 @@ class DegenerateVectorError(ValueError):
     L2-normalised, so it cannot be stored or ranked. A ``ValueError`` because
     the value the model returned is what is wrong.
     """
+
+
+def fit_vector(vector: list[float], dimensions: int | None) -> list[float]:
+    """*vector* checked, and truncated to *dimensions* and L2-renormalised when given.
+
+    Raises:
+        EmbeddingDimensionError: When *dimensions* is below 1 or exceeds the
+            vector's length.
+        DegenerateVectorError: When the (truncated) vector has a non-finite
+            component or zero norm.
+    """
+    if dimensions is not None:
+        if dimensions < 1 or dimensions > len(vector):
+            raise EmbeddingDimensionError(
+                f"dimensions={dimensions} cannot be taken from a {len(vector)}-dimensional vector"
+            )
+        vector = vector[:dimensions]
+    if not all(math.isfinite(value) for value in vector):
+        raise DegenerateVectorError("embedding vector has a non-finite component")
+    norm = math.sqrt(sum(value * value for value in vector))
+    if norm == 0.0:
+        raise DegenerateVectorError("embedding vector has zero norm")
+    if dimensions is None:
+        return list(vector)
+    return [value / norm for value in vector]
 
 
 def declares(provider_class: type, flag: str) -> bool:
