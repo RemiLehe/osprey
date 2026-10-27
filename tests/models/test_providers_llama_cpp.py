@@ -174,7 +174,8 @@ class TestTheNewFactsDefaultOff:
         cls = get_provider_registry().get_provider(name)
         assert cls.host_override_env_var is None
         assert cls.resolves_fallback_outside_calls is False
-        assert cls.truncates_to_dimensions is False
+        # The embedding gateways (GatewayEmbeddingMixin) truncate client-side too.
+        assert cls.truncates_to_dimensions is (name in {"cborg", "amsc-i2"})
 
     @pytest.mark.parametrize("name", _other_builtins())
     def test_every_other_builtin_accepts_a_v1_base_and_a_root(self, name):
