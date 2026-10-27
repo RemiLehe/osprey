@@ -1075,6 +1075,7 @@ def test_build_command_fails_on_violation(tmp_path, caplog):
                 "data": "data",
                 "provider": "anthropic",
                 "model": "claude-haiku-4-5",
+                "agents": ["agents/bogus"],
             },
             default_flow_style=False,
         )
